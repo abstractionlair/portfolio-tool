@@ -1,5 +1,5 @@
 # Project specific
-data/
+/data/  # Only ignore root data directory, not src/data/
 *.env
 .env
 config/local_settings.py
