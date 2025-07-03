@@ -1,13 +1,12 @@
 # Portfolio Optimization Tool
 
 ## Vision
-A comprehensive portfolio building and optimization tool that serves both as a practical personal investment management system and as a demonstration of software engineering capabilities for prospective employers.
+A comprehensive portfolio building and optimization tool.
 
 ## Goals
 
 ### Primary Goals
-1. **Personal Use**: Create a functional tool for managing and optimizing my investment portfolio
-2. **Professional Portfolio**: Develop a well-architected project that demonstrates software engineering skills
+Create a functional tool for managing and optimizing my investment portfolio
 
 ### Secondary Goals
 - Replace/improve upon portfoliovisualizer.com functionality
