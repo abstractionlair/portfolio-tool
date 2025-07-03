@@ -1,0 +1,15 @@
+# Project specific
+data/
+*.env
+.env
+config/local_settings.py
+
+# API keys and secrets
+*_api_key*
+*_secret*
+credentials/
+
+# Personal portfolio data
+portfolio_data/
+my_holdings/
+
