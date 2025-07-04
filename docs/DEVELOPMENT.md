@@ -12,13 +12,9 @@ This guide covers setting up a new development machine to work on the portfolio 
 ## 1. Clone the Repository
 
 ```bash
-# Create a workspace directory
-mkdir -p ~/projects
-cd ~/projects
-
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/portfolio-optimizer.git
-cd portfolio-optimizer
+git clone git@github.com:abstractionlair/portfolio-tool.git
+cd portfolio-tool
 
 # Set up git identity (if not already configured)
 git config user.name "Your Name"
