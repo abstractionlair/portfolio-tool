@@ -13,3 +13,7 @@ credentials/
 portfolio_data/
 my_holdings/
 
+# Claude Desktop config (never commit with real keys)
+claude_desktop_config.json
+*_config_local.json
+

@@ -1,0 +1,31 @@
+{
+    "mcpServers": {
+        "github": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-github"
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE",
+                "GITHUB_OWNER": "YOUR_GITHUB_USERNAME"
+            }
+        },
+        "filesystem": {
+            "command": "npx",
+            "args": [
+                "-y", 
+                "@modelcontextprotocol/server-filesystem",
+                "~/portfolio-tool"
+            ]
+        },
+        "ai-coordination": {
+            "command": "PYTHON_VENV_PATH/bin/python",
+            "args": ["PROJECT_PATH/mcp/ai_coordination_server.py"],
+            "env": {
+                "PYTHONPATH": "PROJECT_PATH/mcp",
+                "ANTHROPIC_API_KEY": "YOUR_ANTHROPIC_API_KEY_HERE"
+            }
+        } 
+    }
+}

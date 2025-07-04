@@ -74,3 +74,42 @@ Create a functional tool for managing and optimizing my investment portfolio
 - Specific employer audiences to target?
 - Integration with brokerage APIs vs. manual import/export?
 
+## Quick Start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/abstractionlair/portfolio-optimizer.git
+   cd portfolio-optimizer
+   ```
+
+2. Set up Python environment:
+   ```bash
+   pyenv local 3.13.5  # or check .python-version
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install dependencies and package:
+   ```bash
+   pip install -r requirements.txt
+   pip install -e .  # Install in development mode
+   ```
+
+4. Copy and configure environment variables:
+   ```bash
+   cp .env.template .env
+   # Edit .env with your API keys
+   ```
+
+5. Run tests:
+   ```bash
+   pytest
+   ```
+
+6. Try the example:
+   ```bash
+   python examples/fetch_market_data.py
+   ```
+
+For detailed setup instructions, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
