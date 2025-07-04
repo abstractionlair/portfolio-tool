@@ -4,7 +4,7 @@ This guide covers setting up a new development machine to work on the portfolio 
 
 ## Prerequisites
 - Git installed
-- Python 3.11 or higher
+- pyenv (for Python version management)
 - GitHub account with repository access
 - Claude Desktop app (for MCP integration)
 - VS Code or preferred editor
@@ -27,34 +27,75 @@ git config user.email "your.email@example.com"
 
 ## 2. Python Environment Setup
 
-### Option A: Using venv (Recommended for simplicity)
+### Install pyenv (if not already installed)
+
+#### macOS (using Homebrew)
 ```bash
-# Create virtual environment
+# Install pyenv
+brew install pyenv
+
+# Add to shell configuration (.zshrc or .bash_profile)
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+
+# Restart shell or source config
+source ~/.zshrc
+```
+
+#### Linux
+```bash
+# Install dependencies first
+sudo apt update
+sudo apt install -y build-essential libssl-dev zlib1g-dev \
+libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev \
+liblzma-dev python3-openssl git
+
+# Install pyenv
+curl https://pyenv.run | bash
+
+# Add to shell configuration
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+
+# Restart shell
+exec "$SHELL"
+```
+
+### Install Python 3.13.5
+```bash
+# Install Python 3.13.5
+pyenv install 3.13.5
+
+# Set as default for this project
+cd ~/projects/portfolio-optimizer
+pyenv local 3.13.5
+
+# Verify installation
+python --version  # Should show Python 3.13.5
+```
+
+### Create Virtual Environment
+```bash
+# Create virtual environment with Python 3.13.5
 python -m venv venv
 
 # Activate virtual environment
 # On macOS/Linux:
 source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
+# On Windows (WSL):
+# source venv/bin/activate
 
 # Upgrade pip
 pip install --upgrade pip
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### Option B: Using Poetry (Better dependency management)
-```bash
-# Install poetry if not already installed
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Install dependencies
-poetry install
-
-# Activate shell
-poetry shell
+# Install package in development mode (important!)
+pip install -e .
 ```
 
 ## 3. Environment Variables Setup
@@ -195,7 +236,7 @@ When using Claude Code on this machine:
 1. **First time in a session**:
    ```bash
    cd ~/projects/portfolio-optimizer
-   source venv/bin/activate  # or 'poetry shell'
+   source venv/bin/activate
    ```
 
 2. **Share context from Claude Chat**:
@@ -328,6 +369,11 @@ git log --oneline -n 3
    - Ensure virtual environment is activated
    - Check all requirements are installed
    - Verify PYTHONPATH includes project root
+   - **Solution**: Install package in development mode:
+     ```bash
+     pip install -e .
+     ```
+   - This makes `src` importable from anywhere in the project
 
 3. **API errors**:
    - Verify .env file exists and has keys
@@ -362,6 +408,55 @@ codex --version
 gemini --version
 ```
 
+## Common Setup Issues and Solutions
+
+### Python Version Mismatch in Virtual Environment
+If your virtual environment uses a different Python version than expected:
+```bash
+# Check Python version
+python --version
+
+# If incorrect, recreate the virtual environment:
+deactivate
+rm -rf venv
+pyenv local 3.13.5  # or your desired version
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+```
+
+### Module Import Errors
+If you get "No module named 'src'" errors:
+```bash
+# Install the package in development mode
+pip install -e .
+
+# Alternative: Run from project root
+python -m examples.fetch_market_data
+```
+
+### Jupyter Kernel Issues
+If Jupyter can't find your packages:
+```bash
+# Install Jupyter in your virtual environment
+pip install jupyter jupyterlab ipykernel
+
+# Register the kernel
+python -m ipykernel install --user --name=portfolio-optimizer --display-name="Portfolio Optimizer"
+
+# In Jupyter, select: Kernel → Change Kernel → Portfolio Optimizer
+```
+
+### Git Ignoring Source Files
+If git ignores files in `src/data/`:
+- Check `.gitignore` - use `/data/` instead of `data/` to only ignore root data directory
+
+### MCP Server Configuration
+- Ensure absolute paths in filesystem MCP config
+- GitHub MCP needs your GitHub username, not local username
+- Always restart Claude Desktop after config changes
+
 ## Next Steps
 1. Verify all tests pass
 2. Try fetching some market data
@@ -372,3 +467,4 @@ gemini --version
 - Keep your .env file updated with any new API keys
 - Pull latest changes before starting work: `git pull origin develop`
 - Create feature branches for new work: `git checkout -b feature/your-feature`
+- Python version is managed by pyenv - check `.python-version` file in project root
