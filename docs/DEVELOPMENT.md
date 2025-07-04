@@ -1,88 +1,42 @@
--p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
-source ~/.zshrc
+# Development Machine Setup Guide
+
+This guide covers setting up a new development machine to work on the portfolio optimizer project.
+
+## Prerequisites
+- Git installed
+- Python 3.11 or higher
+- GitHub account with repository access
+- Claude Desktop app (for MCP integration)
+- VS Code or preferred editor
+
+## 1. Clone the Repository
+
+```bash
+# Create a workspace directory
+mkdir -p ~/projects
+cd ~/projects
+
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/portfolio-optimizer.git
+cd portfolio-optimizer
+
+# Set up git identity (if not already configured)
+git config user.name "Your Name"
+git config user.email "your.email@example.com"
 ```
 
-### Linux
+## 2. Python Environment Setup
+
+### Option A: Using venv (Recommended for simplicity)
 ```bash
-# Using NodeSource repository (recommended)
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Verify installation
-node --version
-npm --version
-
-# Configure npm to avoid permission issues
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## 3. Python Environment Setup
-
-### Install pyenv (if not already installed)
-
-#### macOS (using Homebrew)
-```bash
-# Install pyenv
-brew install pyenv
-
-# Add to shell configuration (.zshrc or .bash_profile)
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
-echo 'eval "$(pyenv init -)"' >> ~/.zshrc
-
-# Restart shell or source config
-source ~/.zshrc
-```
-
-#### Linux
-```bash
-# Install dependencies first
-sudo apt update
-sudo apt install -y build-essential libssl-dev zlib1g-dev \
-libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
-libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev \
-liblzma-dev python3-openssl git
-
-# Install pyenv
-curl https://pyenv.run | bash
-
-# Add to shell configuration
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-
-# Restart shell
-exec "$SHELL"
-```
-
-### Install Python 3.13.5
-```bash
-# Install Python 3.13.5
-pyenv install 3.13.5
-
-# Set as default for this project
-cd ~/projects/portfolio-optimizer
-pyenv local 3.13.5
-
-# Verify installation
-python --version  # Should show Python 3.13.5
-```
-
-### Create Virtual Environment
-```bash
-# Create virtual environment with Python 3.13.5
+# Create virtual environment
 python -m venv venv
 
 # Activate virtual environment
 # On macOS/Linux:
 source venv/bin/activate
-# On Windows (WSL):
-# source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
 
 # Upgrade pip
 pip install --upgrade pip
@@ -91,13 +45,10 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Alternative: Using Poetry (Better dependency management)
+### Option B: Using Poetry (Better dependency management)
 ```bash
 # Install poetry if not already installed
 curl -sSL https://install.python-poetry.org | python3 -
-
-# Ensure pyenv Python is used
-pyenv local 3.13.5
 
 # Install dependencies
 poetry install
@@ -106,7 +57,7 @@ poetry install
 poetry shell
 ```
 
-## 4. Environment Variables Setup
+## 3. Environment Variables Setup
 
 ```bash
 # Copy the template
@@ -119,11 +70,11 @@ cp config/.env.template .env
 # - Any other service keys
 ```
 
-## 5. Claude Desktop MCP Configuration
+## 4. Claude Desktop MCP Configuration
 
 ### Install GitHub MCP Server
 ```bash
-# Install globally using npm (no sudo needed with our setup)
+# Ensure npm is installed first
 npm install -g @modelcontextprotocol/server-github
 ```
 
@@ -131,38 +82,38 @@ npm install -g @modelcontextprotocol/server-github
 1. Open Claude Desktop settings
 2. Locate config file:
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-      - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-         - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 3. Add/update configuration:
 ```json
 {
   "mcpServers": {
-      "github": {
-            "command": "npx",
-	          "args": [
-		          "-y",
-			          "@modelcontextprotocol/server-github"
-				        ],
-					      "env": {
-					              "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-pat-here"
-						            }
-							        },
-								    "filesystem": {
-								          "command": "npx",
-									        "args": [
-										        "-y",
-											        "@modelcontextprotocol/server-filesystem",
-												        "~/projects/portfolio-optimizer"
-													      ]
-													          }
-														    }
-														    }
-														    ```
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-pat-here"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y", 
+        "@modelcontextprotocol/server-filesystem",
+        "~/projects/portfolio-optimizer"
+      ]
+    }
+  }
+}
+```
 
 4. Restart Claude Desktop
 
-## 6. VS Code Setup (Recommended)
+## 5. VS Code Setup (Recommended)
 
 ### Install Recommended Extensions
 ```bash
@@ -174,37 +125,37 @@ Add to `.vscode/extensions.json`:
 ```json
 {
   "recommendations": [
-      "ms-python.python",
-          "ms-python.vscode-pylance",
-	      "ms-python.black-formatter",
-	          "charliermarsh.ruff",
-		      "ms-toolsai.jupyter",
-		          "github.copilot",
-			      "eamodio.gitlens"
-			        ]
-				}
-				```
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    "charliermarsh.ruff",
+    "ms-toolsai.jupyter",
+    "github.copilot",
+    "eamodio.gitlens"
+  ]
+}
+```
 
 ### Configure VS Code Settings
 Add to `.vscode/settings.json`:
 ```json
 {
   "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true,
-      "python.formatting.provider": "black",
-        "python.formatting.blackArgs": ["--line-length", "100"],
-	  "editor.formatOnSave": true,
-	    "python.linting.pylintArgs": ["--max-line-length", "100"],
-	      "files.exclude": {
-	          "**/__pycache__": true,
-		      "**/*.pyc": true,
-		          ".pytest_cache": true,
-			      "venv": true
-			        }
-				}
-				```
+  "python.linting.pylintEnabled": true,
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": ["--line-length", "100"],
+  "editor.formatOnSave": true,
+  "python.linting.pylintArgs": ["--max-line-length", "100"],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".pytest_cache": true,
+    "venv": true
+  }
+}
+```
 
-## 7. Verify Installation
+## 6. Verify Installation
 
 ### Run Tests
 ```bash
@@ -215,8 +166,8 @@ pytest
 mkdir -p tests
 echo "def test_import():
     import src
-        assert True" > tests/test_import.py
-	```
+    assert True" > tests/test_import.py
+```
 
 ### Test Data Access
 ```python
@@ -237,22 +188,22 @@ print(f'Environment loaded: {\".env\" if os.getenv(\"ALPHAVANTAGE_API_KEY\") els
 "
 ```
 
-## 8. Claude Code Setup
+## 7. Claude Code Setup
 
 When using Claude Code on this machine:
 
 1. **First time in a session**:
    ```bash
-      cd ~/projects/portfolio-optimizer
-         source venv/bin/activate  # or 'poetry shell'
-	    ```
+   cd ~/projects/portfolio-optimizer
+   source venv/bin/activate  # or 'poetry shell'
+   ```
 
 2. **Share context from Claude Chat**:
    - Copy relevant artifacts or discussions
-      - Reference GitHub issues: "Working on issue #5"
-         - Share design decisions from chat
+   - Reference GitHub issues: "Working on issue #5"
+   - Share design decisions from chat
 
-## 9. Optional: Jupyter Setup
+## 8. Optional: Jupyter Setup
 
 ```bash
 # Install Jupyter in the virtual environment
@@ -265,7 +216,7 @@ python -m ipykernel install --user --name=portfolio-optimizer
 jupyter notebook notebooks/
 ```
 
-## 10. Multiple AI Assistant Setup (Optional but Recommended)
+## 9. Multiple AI Assistant Setup (Optional but Recommended)
 
 Using multiple AI coding assistants provides complementary strengths and fresh perspectives. All work with the same local files and git repository, ensuring coordination.
 
@@ -360,9 +311,9 @@ git log --oneline -n 3
 - **Trust but verify**: Review all AI-generated code
 - **Leverage strengths**:
   - Claude Code: Architecture and complex logic
-    - Codex CLI: Quick iterations and fixes
-      - Gemini CLI: Large file analysis and research
-        - Cursor: Rapid prototyping in IDE
+  - Codex CLI: Quick iterations and fixes
+  - Gemini CLI: Large file analysis and research
+  - Cursor: Rapid prototyping in IDE
 
 ## Troubleshooting
 
@@ -370,24 +321,24 @@ git log --oneline -n 3
 
 1. **MCP not connecting**:
    - Check Claude Desktop is fully restarted
-      - Verify GitHub PAT hasn't expired
-         - Check config file JSON syntax
+   - Verify GitHub PAT hasn't expired
+   - Check config file JSON syntax
 
 2. **Import errors**:
    - Ensure virtual environment is activated
-      - Check all requirements are installed
-         - Verify PYTHONPATH includes project root
+   - Check all requirements are installed
+   - Verify PYTHONPATH includes project root
 
 3. **API errors**:
    - Verify .env file exists and has keys
-      - Check API rate limits
-         - Ensure keys are valid
+   - Check API rate limits
+   - Ensure keys are valid
 
 4. **AI Assistant Issues**:
    - **Claude Code**: Ensure npm v18+ and proper authentication
-      - **Codex CLI**: Check OPENAI_API_KEY is set and valid
-         - **Gemini CLI**: Login with Google account, check quota
-	    - **Permission errors**: Never use sudo with npm installs
+   - **Codex CLI**: Check OPENAI_API_KEY is set and valid
+   - **Gemini CLI**: Login with Google account, check quota
+   - **Permission errors**: Never use sudo with npm installs
 
 ### Useful Commands
 ```bash
@@ -420,4 +371,4 @@ gemini --version
 ## Notes
 - Keep your .env file updated with any new API keys
 - Pull latest changes before starting work: `git pull origin develop`
-- Create feature branches for new work: `git checkout -b feature/your-feature`~
+- Create feature branches for new work: `git checkout -b feature/your-feature`
