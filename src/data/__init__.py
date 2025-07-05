@@ -7,3 +7,7 @@ This module handles all data fetching and storage operations including:
 - Benchmark data
 - Economic indicators
 """
+
+from .market_data import MarketDataFetcher, calculate_returns
+
+__all__ = ["MarketDataFetcher", "calculate_returns"]

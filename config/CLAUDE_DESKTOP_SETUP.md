@@ -38,9 +38,6 @@ Provides access to GitHub repositories, issues, and pull requests directly from 
 ### Filesystem Server
 Allows Claude to read and write files in your project directory. The path `~/portfolio-tool` will expand to your home directory automatically.
 
-### AI Coordination Server
-Custom server for coordinating between Claude Desktop and Claude Code. This enables invoking Claude Code directly from conversations.
-
 ## Security Notes
 
 - **Never commit** your actual config file with real API keys
@@ -73,14 +70,6 @@ Here's an example of what a working configuration might look like (with fake key
         "filesystem": {
             "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/portfolio-tool"]
-        },
-        "ai-coordination": {
-            "command": "/Users/scottmcguire/portfolio-tool/venv/bin/python",
-            "args": ["/Users/scottmcguire/portfolio-tool/mcp/ai_coordination_server.py"],
-            "env": {
-                "PYTHONPATH": "/Users/scottmcguire/portfolio-tool/mcp",
-                "ANTHROPIC_API_KEY": "sk-ant-api03-fake-key-for-example"
-            }
         }
     }
 }
