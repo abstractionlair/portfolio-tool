@@ -1,0 +1,77 @@
+metadata:
+  last_updated: '2025-07-04'
+  source: Fund replication analysis spreadsheet
+  methodology: OLS regression against factor ETFs
+exposure_types:
+  BONDS: Fixed Income
+  COMMODITIES: Commodities
+  EM_VALUE_EQUITY: Emerging Markets Value Equity
+  GLOBAL_EQUITY: Global Equity
+  INTL_EQUITY: International Developed Equity
+  INTL_VALUE_EQUITY: International Value Equity
+  US_LARGE_EQUITY: US Large Cap Equity
+  US_SMALL_EQUITY: US Small Cap Equity
+  US_SMALL_VALUE_EQUITY: US Small Cap Value Equity
+  US_VALUE_EQUITY: US Large Cap Value Equity
+  LONG_SHORT: Long/Short Equity
+  MANAGED_FUTURES: Managed Futures/Trend Following
+  REAL_ESTATE: Real Estate
+representative_etfs:
+  PFIUX: PIMCO Dynamic Bond Fund
+  PTLDX: PIMCO Low Duration Fund
+  VFISX: Vanguard Short-Term Treasury Fund
+  VAIPX: Vanguard Inflation-Protected Securities Fund
+  AGG: iShares Core US Aggregate Bond ETF
+  GOVT: iShares US Treasury Bond ETF
+  HYLB: Xtrackers USD High Yield Corporate Bond ETF
+  COMIX: PIMCO Commodity Real Return Strategy Fund
+  CCRSX: Dreyfus Commodity Strategies Fund
+  DFEVX: DFA Emerging Markets Value Fund
+  VT: Vanguard Total World Stock ETF
+  VTMGX: Vanguard Total International Stock Index Fund
+  DFIVX: DFA International Value Fund
+  VFIAX: Vanguard 500 Index Fund
+  VSMAX: Vanguard Small-Cap Index Fund
+  SFSNX: Schwab Fundamental US Small Company Index Fund
+  VRVIX: Vanguard Russell 1000 Value Index Fund
+  QMNIX: AQR Market Neutral Fund
+  ABYIX: Abbey Capital Futures Strategy Fund
+  AHLIX: AlphaSimplex Managed Futures Strategy Fund
+  AQMNX: AQR Managed Futures Strategy Fund
+  ASFYX: AlphaSimplex Managed Futures Strategy Fund Y
+  QMHIX: AQR Managed Futures Strategy HV Fund
+  DBMF: iMGP DBi Managed Futures Strategy ETF
+  KMLM: KFA Mount Lucas Managed Futures Index Strategy ETF
+  CSDIX: Castle Focus Fund
+  DFREX: DFA Real Estate Securities Fund
+  VGSNX: Vanguard Real Estate Index Fund
+funds:
+  ABYIX:
+    name: Abbey Capital Futures Strategy Fund Class I
+    category: Other
+    exposures:
+      BONDS: 0.28
+      MANAGED_FUTURES: 0.36
+    total_notional: 1.0
+    replication:
+      total_weight: 1.0
+      notes: 'Leverage: 1.0x'
+  MAFIX:
+    name: Abbey Capital Multi Asset Fund Class I
+    category: Other
+    exposures:
+      US_LARGE_EQUITY: 0.3333
+      MANAGED_FUTURES: 0.6667000000000001
+    total_notional: 1.6
+    replication:
+      total_weight: 1.0
+      notes: 'Leverage: 1.6x'
+  PQTIX:
+    name: PIMCO TRENDS Managed Futures Strategy Fund Institutional Class
+    category: Managed Futures
+    exposures:
+      MANAGED_FUTURES: 0.5
+    total_notional: 1.0
+    replication:
+      total_weight: 1.0
+      notes: 'Leverage: 1.0x'

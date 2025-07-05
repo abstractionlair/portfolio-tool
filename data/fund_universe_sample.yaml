@@ -1,0 +1,103 @@
+# Fund Universe - Core Holdings
+# Generated from fund replication analysis
+
+metadata:
+  last_updated: "2025-01-04"
+  source: "Fund replication analysis spreadsheet"
+  methodology: "OLS regression against factor ETFs"
+  
+exposure_types:
+  BONDS: "Fixed Income"
+  COMMODITIES: "Commodities"
+  EM_VALUE_EQUITY: "Emerging Markets Value Equity"
+  GLOBAL_EQUITY: "Global Equity"
+  INTL_EQUITY: "International Developed Equity"
+  INTL_VALUE_EQUITY: "International Value Equity"
+  US_LARGE_EQUITY: "US Large Cap Equity"
+  US_SMALL_EQUITY: "US Small Cap Equity"
+  US_SMALL_VALUE_EQUITY: "US Small Cap Value Equity"
+  US_VALUE_EQUITY: "US Large Cap Value Equity"
+  LONG_SHORT: "Long/Short Equity"
+  MANAGED_FUTURES: "Managed Futures/Trend Following"
+  REAL_ESTATE: "Real Estate"
+
+funds:
+  # Return Stacked ETFs - Core leveraged multi-asset funds
+  RSSB:
+    name: "Return Stacked Global Stocks & Bonds ETF"
+    category: "Return Stacked"
+    exposures:
+      BONDS: 0.5
+      GLOBAL_EQUITY: 0.5
+    total_notional: 1.9
+    replication:
+      total_weight: 1.0
+      notes: "90/90 stocks/bonds via futures overlay"
+      r_squared: 0.98  # You can add actual values
+      
+  RSST:
+    name: "Return Stacked US Stocks & Managed Futures ETF" 
+    category: "Return Stacked"
+    exposures:
+      US_LARGE_EQUITY: 0.5
+      MANAGED_FUTURES: 0.5
+    total_notional: 2.25
+    replication:
+      total_weight: 1.0
+      notes: "100% S&P 500 + 100% managed futures via futures"
+      
+  RSBT:
+    name: "Return Stacked Bonds & Managed Futures ETF"
+    category: "Return Stacked"
+    exposures:
+      BONDS: 0.5
+      MANAGED_FUTURES: 0.5
+    total_notional: 2.25
+    replication:
+      total_weight: 1.0
+      notes: "100% bonds + 100% managed futures"
+      
+  # PIMCO StocksPLUS Funds - Bond collateral with equity/other exposure
+  PSTKX:
+    name: "PIMCO StocksPLUS® Fund Institutional Class"
+    category: "PIMCO StocksPLUS"
+    exposures:
+      BONDS: 0.5
+      US_LARGE_EQUITY: 0.5
+    total_notional: 2.0
+    replication:
+      total_weight: 1.0
+      notes: "S&P 500 exposure via futures, bond collateral"
+      
+  PCFIX:
+    name: "PIMCO RAE PLUS Small Fund Institutional Class"
+    category: "PIMCO RAE PLUS"
+    exposures:
+      BONDS: 0.5
+      US_SMALL_VALUE_EQUITY: 0.5
+    total_notional: 2.1
+    replication:
+      total_weight: 1.0
+      notes: "Small cap value via futures, bond collateral"
+      
+  # Other key multi-asset funds
+  MBXIX:
+    name: "Catalyst/Millburn Hedge Strategy Fund Class I"
+    category: "Multi-Asset"
+    exposures:
+      GLOBAL_EQUITY: 0.333
+      MANAGED_FUTURES: 0.667
+    total_notional: 1.65
+    replication:
+      total_weight: 1.0
+      notes: "Hedge fund replication strategy"
+      
+  QMHIX:
+    name: "AQR Managed Futures Strategy HV Fund Class I"
+    category: "Managed Futures"
+    exposures:
+      MANAGED_FUTURES: 1.0
+    total_notional: 1.5
+    replication:
+      total_weight: 1.0
+      notes: "Pure trend following across asset classes"
