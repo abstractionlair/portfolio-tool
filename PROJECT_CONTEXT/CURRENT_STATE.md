@@ -7,7 +7,17 @@
 - **Owner**: Scott McGuire (GitHub: abstractionlair)
 - **Purpose**: Personal portfolio optimization tool with secondary goal as showcase project
 
-## Current Status: Phase 3 COMPLETED
+## Current Status: Phase 3 COMPLETED, Exposure Universe Defined
+
+### 🚀 Current Work (2025-07-05)
+- **Exposure Universe Definition**: Created hierarchical structure with 16 exposures
+  - 5 categories: Equity Beta, Factor/Style, Alternatives, Nominal Fixed Income, Real Assets
+  - Cash/Risk-Free Rate added for leverage cost modeling
+  - TIPS properly classified as Real Asset (inflation hedge)
+  - Factor/Style split into Equity-only and Multi-asset
+  - **Trend following uses mutual funds** (ABYIX, AHLIX, AQMNX, ASFYX) for 10+ year history
+  - All exposures mapped to investable instruments with longest available history
+  - Configuration in `/config/exposure_universe.yaml`
 
 ### ✅ Phase 1: Environment Setup and Basic Data Access (COMPLETE)
 - Project structure created with proper Python package setup
@@ -224,6 +234,12 @@ trades = result.to_trades(current_portfolio, prices)
 **What's Needed**: User interface and experience improvements to make the powerful engine accessible and usable.
 
 ## Recommended Next Steps
+
+0. **Implement Exposure Universe Infrastructure** (Current Task)
+   - Build ExposureUniverse class to load hierarchical configuration
+   - Enhance data fetching for total returns
+   - Add inflation data integration
+   - Create return estimation framework
 
 1. **Portfolio Visualization** (High Impact, Medium Effort)
    - Create matplotlib/plotly charts for key metrics

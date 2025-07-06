@@ -1,0 +1,226 @@
+# Exposure Universe Configuration
+# Defines abstract exposures and their implementation mappings
+
+exposures:
+  # EQUITY BETA EXPOSURES
+  - id: us_large_equity
+    name: "US Large Cap Equity Beta"
+    description: "US large cap equity risk premium"
+    category: "equity_beta"
+    implementations:
+      - type: "etf_average"
+        tickers: ["SPY", "IVV", "VOO"]
+      - type: "index"
+        index: "SP500"
+    
+  - id: us_small_equity
+    name: "US Small Cap Equity Beta"
+    description: "US small cap equity risk premium"
+    category: "equity_beta"
+    implementations:
+      - type: "etf_average"
+        tickers: ["IWM", "IJR", "VB"]
+      - type: "index"
+        index: "RUSSELL2000"
+    
+  - id: intl_developed_large_equity
+    name: "Developed Ex-US Large Cap Equity Beta"
+    description: "International developed large cap equity risk premium"
+    category: "equity_beta"
+    implementations:
+      - type: "etf_average"
+        tickers: ["EFA", "IEFA", "VEA"]
+      - type: "index"
+        index: "MSCI_EAFE"
+    
+  - id: intl_developed_small_equity
+    name: "Developed Ex-US Small Cap Equity Beta"
+    description: "International developed small cap equity risk premium"
+    category: "equity_beta"
+    implementations:
+      - type: "etf_average"
+        tickers: ["SCZ", "IEUS", "VSS"]
+      - type: "index"
+        index: "MSCI_EAFE_SMALL"
+    
+  - id: emerging_equity
+    name: "Emerging Markets Equity Beta"
+    description: "Emerging markets equity risk premium"
+    category: "equity_beta"
+    implementations:
+      - type: "etf_average"
+        tickers: ["EEM", "IEMG", "VWO"]
+      - type: "index"
+        index: "MSCI_EM"
+
+  # FACTOR/STYLE EXPOSURES
+  - id: factor_style_equity
+    name: "Factor/Style - Equities"
+    description: "Equity-focused factor strategies (value, momentum, quality, low vol)"
+    category: "factor_style"
+    implementations:
+      - type: "fund"
+        ticker: "QMNIX"  # AQR Equity Market Neutral
+        start_date: "2014-01-01"
+      - type: "composite"
+        components:
+          - ticker: "MTUM"  # Momentum (2013)
+            weight: 0.25
+          - ticker: "VLUE"  # Value (2013)
+            weight: 0.25
+          - ticker: "QUAL"  # Quality (2014)
+            weight: 0.25
+          - ticker: "USMV"  # Low Vol (2011)
+            weight: 0.25
+        start_date: "2014-07-01"  # When all 4 ETFs available
+      - type: "notes"
+        description: "Consider using style indices or older mutual funds for pre-2014 history"
+    
+  - id: factor_style_other
+    name: "Factor/Style - Other"
+    description: "Multi-asset factor strategies including carry, value, momentum, defensive across bonds, currencies, commodities"
+    category: "factor_style"
+    implementations:
+      - type: "fund"
+        ticker: "QSPIX"  # AQR Style Premia Alternative
+        start_date: "2013-10-31"
+      - type: "notes"
+        description: "Includes futures yield/carry as part of multi-asset carry strategy"
+
+  # ALTERNATIVE STRATEGIES
+  - id: trend_following
+    name: "Trend Following"
+    description: "Managed futures trend following strategy"
+    category: "alternatives"
+    implementations:
+      - type: "fund_average"
+        tickers: ["ABYIX", "AHLIX", "AQMNX", "ASFYX"]  # Mutual funds with long history
+        start_date: "2010-01-01"  # Most have history back to 2010 or earlier
+      - type: "etf_average"
+        tickers: ["DBMF", "KMLM"]  # Newer ETFs as secondary option
+        start_date: "2019-05-01"
+      - type: "index"
+        index: "SG_TREND"
+      - type: "notes"
+        description: "Using mutual funds for longer history: Abbey Capital (ABYIX), AlphaSimplex (ASFYX), AQR (AQMNX), Aspect (AHLIX)"
+
+  # NOMINAL FIXED INCOME EXPOSURES
+  - id: cash_rate
+    name: "Cash/Risk-Free Rate"
+    description: "Short-term risk-free rate for leverage cost modeling"
+    category: "nominal_fixed_income"
+    implementations:
+      - type: "etf_average"
+        tickers: ["BIL", "SHV", "SGOV"]  # 0-3 month T-bills
+      - type: "rate_series"
+        source: "FRED"
+        series: "DGS3MO"  # 3-Month Treasury Rate
+      - type: "notes"
+        description: "Critical for modeling leverage costs in fund replication"
+    
+  - id: short_ust
+    name: "Short-Term US Treasuries"
+    description: "US Treasury exposure 1-3 years"
+    category: "nominal_fixed_income"
+    implementations:
+      - type: "etf_average"
+        tickers: ["SHY", "SCHO", "VGSH"]
+    
+  - id: broad_ust
+    name: "Broad US Treasuries"
+    description: "Broad US Treasury exposure across curve"
+    category: "nominal_fixed_income"
+    implementations:
+      - type: "etf_average"
+        tickers: ["IEF", "IEI", "GOVT"]
+    
+  - id: dynamic_global_bonds
+    name: "Dynamic Global Bonds"
+    description: "Actively managed global fixed income"
+    category: "nominal_fixed_income"
+    implementations:
+      - type: "fund"
+        ticker: "PFIUX"  # PIMCO Foreign Bond Fund (Institutional)
+        alternative: "PFUIX"  # PIMCO Unconstrained Bond (2008)
+        start_date: "1993-01-01"  # PFIUX has very long history
+      - type: "composite"
+        components:
+          - ticker: "BNDX"  # International bonds (2013)
+            weight: 0.6
+          - ticker: "EMB"   # EM bonds (2007)
+            weight: 0.4
+        start_date: "2013-06-01"
+      - type: "notes"
+        description: "PFIUX/PFUIX provide long history; composite for ETF alternative"
+
+  # REAL ASSETS
+  - id: real_estate
+    name: "Real Estate"
+    description: "Public real estate exposure via REITs"
+    category: "real_assets"
+    implementations:
+      - type: "etf_average"
+        tickers: ["VNQ", "XLRE", "RWR", "REET"]
+        
+  - id: commodities
+    name: "Broad Commodities"
+    description: "Diversified commodity exposure"
+    category: "real_assets"
+    implementations:
+      - type: "etf_average"
+        tickers: ["DJP", "DBC", "PDBC"]
+        
+  - id: gold
+    name: "Gold"
+    description: "Gold bullion exposure"
+    category: "real_assets"
+    implementations:
+      - type: "etf_average"
+        tickers: ["GLD", "IAU", "GLDM"]
+    
+  - id: tips
+    name: "Treasury Inflation-Protected Securities"
+    description: "US TIPS for inflation protection"
+    category: "real_assets"
+    implementations:
+      - type: "etf_average"
+        tickers: ["TIP", "SCHP", "VTIP"]
+
+# Configuration settings
+config:
+  # Category hierarchy
+  categories:
+    - equity_beta: "Traditional equity market exposure"
+    - factor_style: "Systematic factor strategies"
+    - alternatives: "Alternative trading strategies"
+    - nominal_fixed_income: "Fixed-rate bond exposures"
+    - real_assets: "Inflation-sensitive and real assets"
+  
+  # Data requirements
+  min_history_years: 5
+  preferred_history_years: 10
+  
+  # History prioritization guidelines:
+  # - Always prefer funds/indices with 10+ years of history
+  # - Use mutual funds over ETFs when they provide longer history
+  # - Consider using indices for backfilling pre-fund-inception data
+  # - Document any data splicing or approximations clearly
+  
+  # Implementation notes:
+  # - TIPS moved to Real Assets as inflation hedge
+  # - Fixed Income renamed to Nominal Fixed Income
+  # - Factor/Style split between equity-only and multi-asset
+  # - QSPIX captures carry across all asset classes
+  # - Trend following uses mutual funds for history back to 2010+
+  
+  # Special notes:
+  # - Cash/Risk-Free Rate essential for leverage cost modeling
+  # - Typical leverage spread is 0.5-1.5% over risk-free rate
+  # - Use shortest duration possible (0-3 months)
+  
+  # Potential additions:
+  # - Corporate bonds (credit spread over treasuries)
+  # - High yield bonds (credit risk premium)
+  # - Long-term treasuries (duration exposure)
+  # - Private real estate (if data available)
+  # - Infrastructure (real asset)
