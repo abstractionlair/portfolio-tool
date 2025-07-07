@@ -5,6 +5,7 @@ from .estimators import ReturnEstimator, MarketView
 from .methods import MeanVarianceOptimizer, RiskParityOptimizer, BlackLittermanOptimizer
 from .constraints import ConstraintBuilder
 from .trades import Trade, TradeGenerator
+from .ewma import EWMAEstimator, EWMAParameters, GARCHEstimator
 
 __all__ = [
     "OptimizationEngine",
@@ -18,5 +19,8 @@ __all__ = [
     "BlackLittermanOptimizer",
     "ConstraintBuilder",
     "Trade",
-    "TradeGenerator"
+    "TradeGenerator",
+    "EWMAEstimator",
+    "EWMAParameters", 
+    "GARCHEstimator"
 ]

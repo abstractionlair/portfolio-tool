@@ -5,7 +5,15 @@ from typing import Dict, List, Optional
 from decimal import Decimal, ROUND_HALF_UP
 import logging
 
-from ..portfolio import Portfolio
+try:
+    from portfolio import Portfolio
+except ImportError:
+    try:
+        from ..portfolio import Portfolio
+    except ImportError:
+        # Define stub for standalone usage
+        class Portfolio:
+            pass
 
 logger = logging.getLogger(__name__)
 

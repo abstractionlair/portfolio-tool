@@ -10,6 +10,7 @@ This module handles all data fetching and storage operations including:
 - Total return data with proper dividend handling
 - FRED economic data integration
 - Return estimation framework
+- Multi-frequency data support with proper return compounding
 """
 
 from .market_data import MarketDataFetcher, calculate_returns
@@ -17,6 +18,11 @@ from .exposure_universe import ExposureUniverse, Exposure, Implementation, Expos
 from .total_returns import TotalReturnFetcher
 from .fred_data import FREDDataFetcher
 from .return_estimation import ReturnEstimationFramework
+from .return_decomposition import ReturnDecomposer
+from .multi_frequency import (
+    Frequency, ReturnCompounding, MultiFrequencyDataFetcher, 
+    FrequencyConverter, MultiFrequencyAnalyzer
+)
 
 __all__ = [
     "MarketDataFetcher", 
@@ -27,5 +33,11 @@ __all__ = [
     "ExposureUniverseConfig",
     "TotalReturnFetcher",
     "FREDDataFetcher", 
-    "ReturnEstimationFramework"
+    "ReturnEstimationFramework",
+    "ReturnDecomposer",
+    "Frequency",
+    "ReturnCompounding",
+    "MultiFrequencyDataFetcher",
+    "FrequencyConverter", 
+    "MultiFrequencyAnalyzer"
 ]

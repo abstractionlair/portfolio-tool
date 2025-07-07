@@ -6,7 +6,21 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import logging
 
-from ..portfolio import ExposureType, FundExposureMap, ExposureCalculator, PortfolioAnalytics
+try:
+    from portfolio import ExposureType, FundExposureMap, ExposureCalculator, PortfolioAnalytics
+except ImportError:
+    try:
+        from ..portfolio import ExposureType, FundExposureMap, ExposureCalculator, PortfolioAnalytics
+    except ImportError:
+        # Define stubs for standalone usage
+        class ExposureType:
+            pass
+        class FundExposureMap:
+            pass
+        class ExposureCalculator:
+            pass
+        class PortfolioAnalytics:
+            pass
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +85,14 @@ class OptimizationResult:
     
     def __post_init__(self):
         """Calculate derived metrics."""
-        if self.weights:
-            weights_array = np.array(list(self.weights.values()))
+        if self.weights is not None and len(self.weights) > 0:
+            # Handle both dict and pandas Series
+            if hasattr(self.weights, 'values'):
+                # pandas Series
+                weights_array = self.weights.values
+            else:
+                # dict
+                weights_array = np.array(list(self.weights.values()))
             
             # Count effective assets (non-zero positions)
             self.effective_assets = np.sum(weights_array > 1e-6)
