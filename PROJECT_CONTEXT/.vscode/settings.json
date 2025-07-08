@@ -1,0 +1,39 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": ["--line-length", "100"],
+  "editor.formatOnSave": true,
+  "editor.rulers": [100],
+  
+  // Multi-agent specific
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/venv/**": true
+  },
+  
+  // Show PROJECT_CONTEXT prominently
+  "explorer.sortOrder": "mixed",
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  
+  // Terminal setup for agents
+  "terminal.integrated.profiles.osx": {
+    "Claude Code": {
+      "path": "zsh",
+      "args": ["-c", "cd ${workspaceFolder} && claude-code"]
+    },
+    "Codex CLI": {
+      "path": "zsh", 
+      "args": ["-c", "cd ${workspaceFolder} && codex"]
+    },
+    "Gemini CLI": {
+      "path": "zsh",
+      "args": ["-c", "cd ${workspaceFolder} && gemini"]
+    }
+  }
+}
