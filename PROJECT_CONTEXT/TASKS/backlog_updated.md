@@ -1,142 +1,89 @@
-# Portfolio Optimizer - Updated Backlog
+# Updated Backlog - Risk Premium Focus
 
-## ✅ COMPLETED
-1. Environment Setup and Basic Data Access (Phase 1)
-2. Portfolio and Position Classes
-3. Fund Exposure Decomposition System
-4. Portfolio Analytics Implementation
-5. Leverage-Aware Optimization Engine (Phase 3)
+**Updated**: 2025-01-07 by Desktop Claude
 
-## 🚀 IN PROGRESS
-### Exposure Universe and Returns Infrastructure
-- ✅ Exposure universe hierarchical configuration defined
-- ⏳ Total return data fetching implementation
-- ⏳ Inflation data integration
-- ⏳ Real geometric return calculations
-- ⏳ Parameter estimation framework
+## Immediate Priority: Risk Premium Decomposition
 
-## 📋 IMMEDIATE NEXT (After Current Milestone)
+### 🔴 Critical Path (Must Do First)
+1. **Risk Premium Decomposition Framework** (NEW - Task in progress)
+   - Implement RiskPremiumEstimator class
+   - Integrate return decomposition with risk estimation
+   - Re-optimize parameters on risk premia
+   - Create dual output (RP + total returns)
 
-### 1. Portfolio Visualization Tools
-- Performance charts (cumulative returns, drawdowns)
-- Asset allocation pie charts and treemaps  
-- Risk/return scatter plots
-- Exposure breakdown visualizations
-- Optimization result comparisons
-- Integration with Jupyter notebooks
+2. **Update Parameter Optimization for Risk Premia**
+   - Re-run optimization on decomposed risk premia
+   - Compare optimal parameters for RP vs total returns
+   - Validate forecasting accuracy on risk premia
 
-### 2. Data Infrastructure Hardening
-- Multiple data source fallbacks (Alpha Vantage, Polygon.io)
-- Local data caching with SQLite
-- Data quality monitoring dashboard
-- Better error handling and retries
-- Historical data validation tools
+3. **Revise Notebooks for Risk Premium Analysis**
+   - Update exposure risk estimation notebook
+   - Show both RP and total return volatilities
+   - Explain the decomposition visually
 
-### 3. Web API Foundation (Start of Phase 4)
-- FastAPI application structure
-- Portfolio CRUD endpoints
-- Optimization API endpoints
-- Market data endpoints
-- API documentation (OpenAPI/Swagger)
+### 🟡 High Priority (After RP Implementation)
 
-## 🎯 HIGH PRIORITY (Next Sprint)
+4. **GARCH Integration with Risk Premia**
+   - Add GARCH to parameter optimization
+   - Test on risk premia specifically
+   - Compare GARCH vs EWMA for different exposures
 
-### 4. Tax-Aware Features
-- Tax lot tracking
-- After-tax return calculations
-- Tax-aware optimization constraints
-- Wash sale detection
-- Capital gains estimation
+5. **Real Return Optimization** (Builds on RP framework)
+   - Now makes more sense with decomposed returns
+   - Real RP = Nominal RP - Expected Inflation
+   - Natural extension of decomposition
 
-### 5. Backtesting Framework
-- Strategy definition system
-- Historical simulation engine
-- Transaction cost modeling
-- Rebalancing simulation
-- Performance analytics
+6. **Component Correlation Modeling**
+   - Model correlations between inflation/RF/RP
+   - Critical for recombining to total returns
+   - Affects portfolio hedging properties
 
-### 6. Enhanced Risk Analytics
-- Factor risk decomposition
-- Scenario analysis
-- Stress testing
-- Correlation regime detection
-- Tail risk metrics
+### 🟢 Medium Priority
 
-## 📊 MEDIUM PRIORITY
+7. **Risk Attribution System**
+   - Decompose portfolio risk into sources
+   - Inflation risk vs RF risk vs RP risk
+   - Natural output from decomposition
 
-### 7. Production Data Management
-- Database schema design (PostgreSQL)
-- Efficient time series storage
-- Data versioning system
-- Automated data updates
-- Data quality alerts
+8. **Enhanced Visualization**
+   - Waterfall charts for return decomposition
+   - Risk contribution by component
+   - RP vs total return efficient frontiers
 
-### 8. Advanced Strategies
-- Factor timing models
-- Tactical allocation framework
-- Regime detection
-- Dynamic leverage adjustment
-- Multi-period optimization
+9. **Inflation Hedging Analysis**
+   - Which exposures hedge inflation?
+   - Based on component correlations
+   - Natural from decomposition
 
-### 9. User Interface Foundation
-- React frontend setup
-- Portfolio dashboard
-- Optimization interface
-- Results visualization
-- Mobile responsive design
+### 🔵 Future Enhancements
 
-## 🔧 TECHNICAL IMPROVEMENTS
+10. **Dynamic Component Modeling**
+    - Time-varying inflation expectations
+    - Term structure of real rates
+    - Regime-dependent correlations
 
-### Code Quality
-- Increase test coverage to 90%+
-- Add integration tests
-- Performance benchmarks
-- Type hints everywhere
-- Comprehensive logging
+11. **Factor Risk Premia**
+    - Decompose factor returns
+    - Pure factor risk premia
+    - Cross-sectional RP analysis
 
-### Infrastructure
-- Docker containerization
-- CI/CD pipeline (GitHub Actions)
-- Production deployment guide
-- Monitoring setup (Prometheus/Grafana)
-- Error tracking (Sentry)
+12. **Scenario Analysis on Components**
+    - Inflation shock scenarios
+    - Real rate scenarios
+    - Risk premium compression
 
-### Documentation
-- API reference documentation
-- Architecture diagrams
-- User guide
-- Video tutorials
-- Example notebooks
+## Removed/Deprioritized Items
 
-## 💡 FUTURE IDEAS
+- ~~Simple web interface~~ - Wait until RP framework proves value
+- ~~Basic reporting~~ - Need RP-aware reports
+- ~~Simple expected returns~~ - User explicitly deprioritized
 
-### Advanced Features
-- Multi-account optimization
-- Monte Carlo simulation
-- Options strategy integration
-- Crypto asset support
-- ESG constraints
+## Key Insight
+The shift to risk premium decomposition fundamentally changes many downstream tasks. Items that seemed ready for implementation now need reconsideration through the RP lens.
 
-### Integrations
-- Broker API connections
-- Bloomberg data feed
-- Tax software export
-- Portfolio reporting tools
-- Risk management systems
-
-## Key Principles for Prioritization
-
-1. **User Value**: What makes the tool actually useful?
-2. **Data Quality**: Garbage in, garbage out
-3. **Differentiation**: Focus on leverage-aware features
-4. **Robustness**: Production-ready, not just demo-ready
-5. **Extensibility**: Easy to add new features
-
-## Next Task Assignment
-
-After completing the Asset Universe Infrastructure:
-1. **If you want visual feedback**: Portfolio Visualization Tools
-2. **If you want robustness**: Data Infrastructure Hardening  
-3. **If you want user access**: Web API Foundation
-
-Each represents a different but valid path forward.
+## Success Metrics
+1. Risk premium volatility < Total return volatility for bonds ✓
+2. More stable optimal portfolios over time
+3. Better out-of-sample performance
+4. Natural inflation hedging identification
+5. Alignment with academic theory

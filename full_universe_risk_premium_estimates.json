@@ -1,0 +1,100 @@
+{
+  "us_large_equity": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "us_small_equity": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "intl_developed_large_equity": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "intl_developed_small_equity": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "emerging_equity": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "factor_style_equity": {
+    "risk_premium_volatility": 0.013205037932977934,
+    "total_volatility": 0.013885045550197712,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "factor_style_other": {
+    "risk_premium_volatility": 0.013205037932977934,
+    "total_volatility": 0.013885045550197712,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "short_ust": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "broad_ust": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "dynamic_global_bonds": {
+    "risk_premium_volatility": 0.013205037932977934,
+    "total_volatility": 0.013885045550197712,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "real_estate": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "commodities": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "gold": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  },
+  "tips": {
+    "risk_premium_volatility": 0.04052680675666791,
+    "total_volatility": 0.041624424973565034,
+    "inflation_volatility": 0.010667233137058914,
+    "real_rf_volatility": 0.013610461945852163,
+    "sample_size": 28
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "estimation_date": "2025-07-07",
+  "forecast_horizon_days": 252,
+  "number_of_exposures": 14,
+  "estimation_method": "optimal",
+  "lookback_days": 1260,
+  "volatility_statistics": {
+    "mean": 0.10503067992773431,
+    "median": 0.12060861932262312,
+    "min": 0.013796764181046722,
+    "max": 0.187056865675405,
+    "std": 0.0592108062993385
+  },
+  "correlation_statistics": {
+    "mean": 0.1356069454732157,
+    "median": 0.029458840981681073,
+    "min": -0.45259187711981436,
+    "max": 0.9428230675669659
+  },
+  "pca_analysis": {
+    "components_for_80pct_variance": 5,
+    "first_component_variance_explained": 0.3404867662119558,
+    "top_3_variance_explained": 0.7023326563430875
+  }
+}

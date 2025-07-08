@@ -60,3 +60,4 @@ test_*.py
 *.yaml.old
 *.json.old
 
+node_modules/

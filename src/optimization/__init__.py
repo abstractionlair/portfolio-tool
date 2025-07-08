@@ -6,6 +6,19 @@ from .methods import MeanVarianceOptimizer, RiskParityOptimizer, BlackLittermanO
 from .constraints import ConstraintBuilder
 from .trades import Trade, TradeGenerator
 from .ewma import EWMAEstimator, EWMAParameters, GARCHEstimator
+from .parameter_optimization import ParameterOptimizer, OptimizationConfig
+from .exposure_risk_estimator import (
+    ExposureRiskEstimator,
+    ExposureRiskEstimate, 
+    ExposureRiskMatrix,
+    build_portfolio_risk_matrix
+)
+from .risk_premium_estimator import (
+    RiskPremiumEstimator,
+    RiskPremiumEstimate,
+    CombinedRiskEstimates,
+    build_portfolio_risk_matrix_from_risk_premia
+)
 
 __all__ = [
     "OptimizationEngine",
@@ -22,5 +35,15 @@ __all__ = [
     "TradeGenerator",
     "EWMAEstimator",
     "EWMAParameters", 
-    "GARCHEstimator"
+    "GARCHEstimator",
+    "ParameterOptimizer",
+    "OptimizationConfig",
+    "ExposureRiskEstimator",
+    "ExposureRiskEstimate",
+    "ExposureRiskMatrix",
+    "build_portfolio_risk_matrix",
+    "RiskPremiumEstimator",
+    "RiskPremiumEstimate", 
+    "CombinedRiskEstimates",
+    "build_portfolio_risk_matrix_from_risk_premia"
 ]
