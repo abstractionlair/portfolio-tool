@@ -87,7 +87,7 @@ class OptimizationResult:
         """Calculate derived metrics."""
         if self.weights is not None and len(self.weights) > 0:
             # Handle both dict and pandas Series
-            if hasattr(self.weights, 'values'):
+            if hasattr(self.weights, 'values') and not isinstance(self.weights, dict):
                 # pandas Series
                 weights_array = self.weights.values
             else:
