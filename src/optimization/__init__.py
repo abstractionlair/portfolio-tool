@@ -19,6 +19,12 @@ from .risk_premium_estimator import (
     CombinedRiskEstimates,
     build_portfolio_risk_matrix_from_risk_premia
 )
+from .comprehensive_parameter_search import (
+    ComprehensiveParameterEstimator,
+    ComprehensiveParameterSearchEngine,
+    ComprehensiveSearchResult,
+    analyze_search_results
+)
 
 __all__ = [
     "OptimizationEngine",
@@ -45,5 +51,9 @@ __all__ = [
     "RiskPremiumEstimator",
     "RiskPremiumEstimate", 
     "CombinedRiskEstimates",
-    "build_portfolio_risk_matrix_from_risk_premia"
+    "build_portfolio_risk_matrix_from_risk_premia",
+    "ComprehensiveParameterEstimator",
+    "ComprehensiveParameterSearchEngine",
+    "ComprehensiveSearchResult",
+    "analyze_search_results"
 ]
