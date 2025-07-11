@@ -12,6 +12,7 @@ Create a functional tool for managing and optimizing my investment portfolio
 - Replace/improve upon portfoliovisualizer.com functionality
 - Enable portfolio management across multiple machines/locations
 - Support sophisticated strategies including leverage and long-short positions
+- Experiment with developing using Claude, Gemini, and Codex in one project
 
 ## High-Level Requirements
 
@@ -36,6 +37,7 @@ Create a functional tool for managing and optimizing my investment portfolio
   - Return Stacked ETFs
   - PIMCO StocksPLUS funds
   - PIMCO RAE Plus funds
+  - ...
 
 ### Technical Considerations
 - **Methodological Challenges**: 

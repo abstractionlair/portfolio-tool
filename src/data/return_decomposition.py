@@ -21,6 +21,7 @@ import numpy as np
 from .fred_data import FREDDataFetcher
 from .total_returns import TotalReturnFetcher
 from .exposure_universe import ExposureUniverse
+from .alignment_strategies import AlignmentStrategy, AlignmentStrategyFactory
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,20 @@ class ReturnDecomposer:
     
     def __init__(self,
                  fred_fetcher: Optional[FREDDataFetcher] = None,
-                 total_return_fetcher: Optional[TotalReturnFetcher] = None):
+                 total_return_fetcher: Optional[TotalReturnFetcher] = None,
+                 alignment_strategy: Optional[AlignmentStrategy] = None):
         """Initialize the return decomposer.
         
         Args:
             fred_fetcher: FREDDataFetcher instance
             total_return_fetcher: TotalReturnFetcher instance
+            alignment_strategy: Strategy for aligning FRED data with returns
         """
         self.fred_fetcher = fred_fetcher or FREDDataFetcher()
         self.total_return_fetcher = total_return_fetcher or TotalReturnFetcher()
+        
+        # Use forward-fill as default strategy
+        self.alignment_strategy = alignment_strategy or AlignmentStrategyFactory.create('forward_fill')
         
         # Cache for decomposition results
         self._decomposition_cache = {}
@@ -77,21 +83,29 @@ class ReturnDecomposer:
         
         logger.info(f"Decomposing returns for {returns.name} from {start_date.date()} to {end_date.date()}")
         
-        # Step 1: Get inflation rates
-        inflation_rates = self.fred_fetcher.get_inflation_rates_for_returns(
+        # Step 1: Get inflation rates and align with market returns
+        inflation_rates_raw = self.fred_fetcher.get_inflation_rates_for_returns(
             start_date, end_date, frequency, inflation_series
         )
         
-        if inflation_rates.empty:
+        # Align inflation data with returns using strategy
+        if not inflation_rates_raw.empty:
+            inflation_rates = self.alignment_strategy.align(returns, inflation_rates_raw)
+            logger.info(f"Aligned inflation data using {self.alignment_strategy.get_name()}")
+        else:
             logger.warning("No inflation data available for decomposition")
             inflation_rates = pd.Series(0, index=returns.index, name='inflation')
         
-        # Step 2: Get nominal risk-free rates
-        nominal_rf_rates = self.fred_fetcher.fetch_risk_free_rate(
+        # Step 2: Get nominal risk-free rates and align with market returns
+        nominal_rf_rates_raw = self.fred_fetcher.fetch_risk_free_rate(
             start_date, end_date, risk_free_maturity, frequency
         )
         
-        if nominal_rf_rates.empty:
+        # Align risk-free rate data using strategy
+        if not nominal_rf_rates_raw.empty:
+            nominal_rf_rates = self.alignment_strategy.align(returns, nominal_rf_rates_raw)
+            logger.info(f"Aligned risk-free rate data using {self.alignment_strategy.get_name()}")
+        else:
             logger.warning("No risk-free rate data available for decomposition")
             nominal_rf_rates = pd.Series(0.02, index=returns.index, name='nominal_rf')  # Default 2%
         
@@ -102,24 +116,38 @@ class ReturnDecomposer:
         # Real risk-free rate = (1 + nominal_rf) / (1 + inflation) - 1
         real_rf_rates = self._calculate_real_risk_free_rates(rf_returns, inflation_rates)
         
-        # Step 5: Align all series
+        # Step 5: Align all series (all are now pre-aligned to returns index)
         decomposition_df = pd.DataFrame({
             'total_return': returns,
-            'inflation': inflation_rates,
-            'nominal_rf_rate': rf_returns,
-            'real_rf_rate': real_rf_rates
+            'inflation': inflation_rates,  # Now pre-aligned
+            'nominal_rf_rate': rf_returns,  # Now pre-aligned
+            'real_rf_rate': real_rf_rates   # Calculated from aligned data
         })
         
-        # Remove rows with any missing data
-        decomposition_df = decomposition_df.dropna()
+        # Only drop rows where return data itself is missing
+        decomposition_df = decomposition_df.dropna(subset=['total_return'])
+        
+        # Log data retention statistics
+        initial_count = len(returns)
+        final_count = len(decomposition_df)
+        retention_rate = final_count / initial_count * 100
+        
+        logger.info(f"Data retention: {final_count}/{initial_count} ({retention_rate:.1f}%)")
+        
+        if retention_rate < 90:
+            logger.warning(f"Low data retention rate: {retention_rate:.1f}%. "
+                          "Consider adjusting alignment strategy.")
         
         if decomposition_df.empty:
             logger.error("No overlapping data for decomposition")
             return pd.DataFrame()
         
-        # Step 6: Calculate spread (excess return over risk-free rate)
-        # Spread = Total Return - Nominal Risk-Free Rate
-        decomposition_df['spread'] = decomposition_df['total_return'] - decomposition_df['nominal_rf_rate']
+        # Step 6: Calculate spread (risk premium over inflation and risk-free rate)
+        # Spread = Total Return - Inflation - Real Risk-Free Rate
+        # This isolates the compensated risk premium after removing uncompensated components
+        decomposition_df['spread'] = (decomposition_df['total_return'] - 
+                                     decomposition_df['inflation'] - 
+                                     decomposition_df['real_rf_rate'])
         
         # Step 7: Verify decomposition (approximately)
         # Total Return ≈ Inflation + Real Risk-Free Rate + Spread

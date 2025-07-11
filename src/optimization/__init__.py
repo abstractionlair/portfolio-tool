@@ -25,6 +25,20 @@ from .comprehensive_parameter_search import (
     ComprehensiveSearchResult,
     analyze_search_results
 )
+from .component_optimizers import (
+    ComponentOptimizer,
+    ComponentOptimalParameters,
+    UnifiedOptimalParameters,
+    VolatilityOptimizer,
+    CorrelationOptimizer,
+    ExpectedReturnOptimizer,
+    ComponentOptimizationOrchestrator
+)
+from .optimized_estimator import (
+    OptimizedRiskEstimator,
+    get_best_risk_estimates,
+    get_optimization_inputs
+)
 
 __all__ = [
     "OptimizationEngine",
@@ -55,5 +69,15 @@ __all__ = [
     "ComprehensiveParameterEstimator",
     "ComprehensiveParameterSearchEngine",
     "ComprehensiveSearchResult",
-    "analyze_search_results"
+    "analyze_search_results",
+    "ComponentOptimizer",
+    "ComponentOptimalParameters",
+    "UnifiedOptimalParameters",
+    "VolatilityOptimizer",
+    "CorrelationOptimizer",
+    "ExpectedReturnOptimizer",
+    "ComponentOptimizationOrchestrator",
+    "OptimizedRiskEstimator",
+    "get_best_risk_estimates",
+    "get_optimization_inputs"
 ]
