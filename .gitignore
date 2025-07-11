@@ -212,3 +212,23 @@ RISK_PREMIUM_VOLATILITY_ANALYSIS.md
 # - PROJECT_CONTEXT/SUMMARY.md
 # - PROJECT_CONTEXT/TASKS/current_task.md
 # - PROJECT_CONTEXT/TASKS/backlog.md
+
+# Additional ignores
+# ==================
+
+# Backup files
+*~
+.env~
+*.old
+
+# Debug and test scripts
+debug_*.py
+test_*.py
+run_test*.py
+
+# Node modules (shouldn't be in Python project)
+node_modules/
+
+# Empty directories
+src/diagnostics/
+src/models/
