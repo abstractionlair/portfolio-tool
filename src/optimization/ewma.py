@@ -7,10 +7,10 @@ from dataclasses import dataclass
 import logging
 
 try:
-    from ..data.multi_frequency import Frequency
+    from ..data.interfaces import Frequency
 except ImportError:
     try:
-        from data.multi_frequency import Frequency
+        from data.interfaces import Frequency
     except ImportError:
         # Fallback enum for standalone usage
         from enum import Enum

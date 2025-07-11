@@ -8,71 +8,15 @@ frequency-aware aggregation, and robust data alignment.
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Tuple, Any
-from enum import Enum
 import warnings
 
 import pandas as pd
 import numpy as np
 from pandas import DataFrame, Series
 
+from .interfaces import Frequency  # Import canonical Frequency enum
+
 logger = logging.getLogger(__name__)
-
-
-class Frequency(Enum):
-    """Supported data frequencies."""
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    QUARTERLY = "quarterly"
-    ANNUAL = "annual"
-    
-    @property
-    def pandas_freq(self) -> str:
-        """Get pandas frequency string."""
-        mapping = {
-            self.DAILY: 'D',
-            self.WEEKLY: 'W-FRI',  # Week ending Friday
-            self.MONTHLY: 'ME',    # Month end
-            self.QUARTERLY: 'QE',  # Quarter end
-            self.ANNUAL: 'YE'      # Year end
-        }
-        return mapping[self]
-    
-    @property
-    def yfinance_interval(self) -> str:
-        """Get yfinance interval string."""
-        mapping = {
-            self.DAILY: '1d',
-            self.WEEKLY: '1wk',
-            self.MONTHLY: '1mo',
-            self.QUARTERLY: '3mo',
-            self.ANNUAL: '1y'
-        }
-        return mapping[self]
-    
-    @property
-    def annualization_factor(self) -> float:
-        """Get annualization factor for this frequency."""
-        mapping = {
-            self.DAILY: 252.0,      # Trading days per year
-            self.WEEKLY: 52.0,      # Weeks per year
-            self.MONTHLY: 12.0,     # Months per year
-            self.QUARTERLY: 4.0,    # Quarters per year
-            self.ANNUAL: 1.0        # Already annual
-        }
-        return mapping[self]
-    
-    @property
-    def business_days_per_period(self) -> float:
-        """Get average business days per period."""
-        mapping = {
-            self.DAILY: 1.0,
-            self.WEEKLY: 5.0,
-            self.MONTHLY: 21.0,
-            self.QUARTERLY: 63.0,
-            self.ANNUAL: 252.0
-        }
-        return mapping[self]
 
 
 class ReturnCompounding:
