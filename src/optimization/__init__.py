@@ -39,6 +39,10 @@ from .optimized_estimator import (
     get_best_risk_estimates,
     get_optimization_inputs
 )
+from .portfolio_optimizer import (
+    PortfolioOptimizer,
+    PortfolioOptimizationConfig
+)
 
 __all__ = [
     "OptimizationEngine",
@@ -79,5 +83,7 @@ __all__ = [
     "ComponentOptimizationOrchestrator",
     "OptimizedRiskEstimator",
     "get_best_risk_estimates",
-    "get_optimization_inputs"
+    "get_optimization_inputs",
+    "PortfolioOptimizer",
+    "PortfolioOptimizationConfig"
 ]
