@@ -186,6 +186,11 @@ class RiskPremiumEstimator(ExposureRiskEstimator):
                 # Convert to timezone-naive for decomposition
                 exposure_returns = exposure_returns.tz_localize(None)
             
+            # CRITICAL FIX: Ensure exposure_returns has a unique name for cache key
+            # This prevents cache collisions when multiple exposures have None names
+            if exposure_returns.name is None:
+                exposure_returns.name = exposure_id
+            
             decomposition = self.return_decomposer.decompose_returns(
                 returns=exposure_returns,
                 start_date=start_date,
@@ -267,20 +272,32 @@ class RiskPremiumEstimator(ExposureRiskEstimator):
         nominal_rf_returns = decomposition['nominal_rf_rate']
         total_returns = decomposition['total_return']
         
-        # Remove any remaining NaN values
-        valid_data = pd.concat([
+        # Handle NaN values more intelligently - don't drop valid total return data
+        # Create a DataFrame with all components
+        all_data = pd.concat([
             risk_premium_returns, inflation_returns, real_rf_returns, total_returns
-        ], axis=1).dropna()
+        ], axis=1)
+        all_data.columns = ['risk_premium', 'inflation', 'real_rf', 'total']
+        
+        # For consistency, use the same time period for both calculations
+        # Use only periods where decomposition is complete for both RP and total volatility
+        valid_data = all_data.dropna()
+        
+        logger.info(f"Using {len(valid_data)} periods for volatility calculations "
+                   f"(removed {len(all_data) - len(valid_data)} periods with incomplete decomposition)")
         
         if len(valid_data) < 20:  # Reduced minimum data requirement for testing
             logger.warning(f"Insufficient valid data for {exposure_id}: {len(valid_data)} periods")
             return None
         
-        # Extract clean series
-        rp_returns = valid_data.iloc[:, 0]  # risk premium (spread)
-        inflation = valid_data.iloc[:, 1]
-        real_rf = valid_data.iloc[:, 2]
-        total = valid_data.iloc[:, 3]
+        # Extract clean series - use consistent dataset for both calculations
+        rp_returns = valid_data['risk_premium']  # risk premium (spread)
+        inflation = valid_data['inflation']
+        real_rf = valid_data['real_rf']
+        total = valid_data['total']  # Use same dataset for consistency
+        
+        # Get consistent annualization factor for all calculations
+        annualization_factor = self._get_robust_annualization_factor(total, frequency)
         
         # Estimate volatility on risk premium component
         if method == 'ewma':
@@ -293,16 +310,16 @@ class RiskPremiumEstimator(ExposureRiskEstimator):
             ewma_params = EWMAParameters(lambda_=lambda_param, min_periods=min_periods)
             estimator = EWMAEstimator(ewma_params)
             
-            # CRITICAL: Estimate on risk premium, not total returns
+            # CRITICAL: Get unannualized volatility first, then apply consistent annualization
             rp_volatility_series = estimator.estimate_volatility(
-                rp_returns, frequency=frequency, annualize=True
+                rp_returns, frequency=frequency, annualize=False
             )
-            # Take the most recent (last) volatility estimate
-            rp_volatility = rp_volatility_series.iloc[-1] if len(rp_volatility_series) > 0 else 0.0
+            # Take the most recent (last) volatility estimate and annualize consistently
+            rp_volatility_unannualized = rp_volatility_series.iloc[-1] if len(rp_volatility_series) > 0 else 0.0
+            rp_volatility = rp_volatility_unannualized * np.sqrt(annualization_factor)
             
         elif method == 'historical':
-            # Simple historical volatility of risk premium
-            annualization_factor = self._get_annualization_factor(frequency)
+            # Simple historical volatility of risk premium with consistent annualization
             rp_volatility = rp_returns.std() * np.sqrt(annualization_factor)
             
         elif method == 'garch':
@@ -316,24 +333,24 @@ class RiskPremiumEstimator(ExposureRiskEstimator):
             garch_params = GARCHParameters(omega=omega, alpha=alpha, beta=beta)
             estimator = GARCHEstimator(garch_params)
             
+            # CRITICAL: Get unannualized volatility first, then apply consistent annualization
             rp_volatility_series = estimator.estimate_volatility(
-                rp_returns, frequency=frequency, annualize=True
+                rp_returns, frequency=frequency, annualize=False
             )
-            # Take the most recent (last) volatility estimate
-            rp_volatility = rp_volatility_series.iloc[-1] if len(rp_volatility_series) > 0 else 0.0
+            # Take the most recent (last) volatility estimate and annualize consistently
+            rp_volatility_unannualized = rp_volatility_series.iloc[-1] if len(rp_volatility_series) > 0 else 0.0
+            rp_volatility = rp_volatility_unannualized * np.sqrt(annualization_factor)
             
         else:
             logger.error(f"Unknown estimation method: {method}")
             return None
         
-        # Estimate component volatilities for reconstruction
-        annualization_factor = self._get_annualization_factor(frequency)
-        
+        # Estimate component volatilities using the same consistent annualization
         inflation_vol = inflation.std() * np.sqrt(annualization_factor)
         real_rf_vol = real_rf.std() * np.sqrt(annualization_factor)
         nominal_rf_vol = nominal_rf_returns.std() * np.sqrt(annualization_factor)
         
-        # Calculate total return volatility for comparison
+        # Calculate total return volatility using the same consistent annualization
         total_vol = total.std() * np.sqrt(annualization_factor)
         
         # Calculate cross-component correlations for reconstruction
@@ -678,6 +695,66 @@ class RiskPremiumEstimator(ExposureRiskEstimator):
             'annual': 1.0
         }
         return factors.get(frequency.lower(), 252.0)
+    
+    def _detect_actual_frequency(self, returns_series: pd.Series) -> str:
+        """Auto-detect the actual frequency of a returns series based on observations.
+        
+        This fixes the frequency mismatch bug where the system gets daily data
+        but annualizes using the requested frequency parameter.
+        
+        Args:
+            returns_series: Time series of returns
+            
+        Returns:
+            Detected frequency: 'daily', 'weekly', 'monthly', 'quarterly', or 'annual'
+        """
+        if len(returns_series) < 2:
+            return 'daily'  # Default fallback
+        
+        # Calculate the time span
+        start_date = returns_series.index[0]
+        end_date = returns_series.index[-1]
+        time_span_days = (end_date - start_date).days
+        
+        # Estimate frequency based on observations per time period
+        observations = len(returns_series)
+        
+        if time_span_days == 0:
+            return 'daily'
+        
+        obs_per_year = observations * 365.25 / time_span_days
+        
+        # Classify based on observations per year
+        if obs_per_year > 200:
+            return 'daily'      # ~252 trading days per year
+        elif obs_per_year > 40:
+            return 'weekly'     # ~52 weeks per year  
+        elif obs_per_year > 8:
+            return 'monthly'    # ~12 months per year
+        elif obs_per_year > 2:
+            return 'quarterly'  # ~4 quarters per year
+        else:
+            return 'annual'     # ~1 observation per year
+    
+    def _get_robust_annualization_factor(self, returns_series: pd.Series, frequency_hint: str = None) -> float:
+        """Get annualization factor with auto-detection to fix frequency mismatch bugs.
+        
+        Args:
+            returns_series: The actual returns data
+            frequency_hint: The requested frequency (may be incorrect)
+            
+        Returns:
+            Correct annualization factor based on actual data frequency
+        """
+        actual_frequency = self._detect_actual_frequency(returns_series)
+        
+        if frequency_hint and actual_frequency != frequency_hint:
+            logger.warning(
+                f"Frequency mismatch detected: requested '{frequency_hint}' but data appears to be '{actual_frequency}'. "
+                f"Using actual frequency '{actual_frequency}' for annualization."
+            )
+        
+        return self._get_annualization_factor(actual_frequency)
 
 
 def build_portfolio_risk_matrix_from_risk_premia(
