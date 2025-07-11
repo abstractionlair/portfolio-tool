@@ -1,169 +1,149 @@
 # Portfolio Optimizer - Task Backlog
 
-## High Priority
+## Immediate Priority - Exposure-Based Optimization Foundation
 
-### 1. Fund Exposure Decomposition System
-- Create exposure definition format (YAML/JSON)
-- Build fund exposure database mapping funds to underlying exposures
-- Implement ExposureCalculator to convert positions to true exposures
-- Create return replication validator to verify exposure assumptions
-- Support for complex funds (Return Stacked, PIMCO StocksPLUS, etc.)
+### 1. ✅ Implement Global Forecast Horizon (CURRENT TASK)
+- **Status**: ACTIVE - See current_task.md
+- Ensure consistent forecast horizon across all exposures
+- Modify parameter optimization to target specific horizons
+- Create horizon-aware configuration structure
 
-### 2. Portfolio Analytics Implementation
-- Calculate portfolio-level returns (daily, monthly, annual)
-- Risk metrics (volatility, Sharpe ratio, max drawdown)
-- Correlation analysis between positions
+### 2. Create Fund Exposure Mapping System
+- **Status**: READY (Task spec created)
+- Build fund_exposures.yaml database
+- Implement FundExposureManager class
+- Create exposure replication validator
+- Enable two-stage optimization workflow
+
+### 3. Build Exposure-Level Optimization Engine
+- **Status**: READY (Task spec created)
+- Create optimization engine working with exposures
+- Implement multiple objectives (Sharpe, risk parity, etc.)
+- Add exposure-specific constraints
+- Integrate with risk model
+
+## High Priority - Complete the Vision
+
+### 4. Expected Return Estimation at Exposure Level
+- Implement risk premium framework for exposures
+- Add shrinkage/Bayesian methods
+- Support for views (Black-Litterman)
+- Cross-sectional return models
+
+### 5. Advanced Fund Selection Optimizer
+- Minimize tracking error to target exposures
+- Handle transaction costs
+- Consider tax implications
+- Multi-account optimization
+
+### 6. Leverage Cost Modeling
+- Model funding costs for leveraged exposures
+- Time-varying spread over cash rate
+- Fund-specific leverage costs
+- Impact on optimization
+
+## Medium Priority - Production Features
+
+### 7. Web Interface Development
+- **Note**: Now depends on exposure-based optimization
+- RESTful API for exposure optimization
+- Interactive exposure allocation UI
+- Fund selection interface
+- Real-time rebalancing suggestions
+
+### 8. Backtesting Framework
+- Test exposure-based strategies
+- Compare with traditional optimization
+- Out-of-sample validation
 - Performance attribution
-- Benchmark comparison functionality
-- **Exposure-based analytics** showing true underlying exposures
 
-### 3. Data Source Abstraction Layer
-- Create DataSource protocol/interface
-- Implement fallback mechanism
-- Add caching layer with TTL
-- Support for multiple data providers
-- Error handling and retry logic
+### 9. Risk Monitoring System
+- Real-time exposure tracking
+- Risk limit monitoring
+- Drawdown alerts
+- Correlation regime detection
 
-### 4. Leverage-Aware Optimization Engine
-- Mean-variance optimization
-- Constraint system (min/max weights, sectors)
-- Risk parity implementation
-- Black-Litterman model
-- Handle leverage in optimization
-- Optimize on true exposures, not fund positions
-- Support notional and volatility-based constraints
+### 10. Data Quality Layer
+- Validate exposure mappings
+- Detect data anomalies
+- Handle corporate actions
+- Quality scoring system
 
-### 5. Tax-Aware Features
-- Tax lot tracking (moved from medium priority)
-- After-tax return calculations
-- Tax-aware rebalancing algorithm
-- Wash sale detection and avoidance
-- Tax loss harvesting opportunities
+## Lower Priority - Advanced Features
 
-## Medium Priority
+### 11. Machine Learning Integration
+- ML-based return forecasting
+- Regime detection models
+- Dynamic exposure adjustment
+- Anomaly detection
 
-### 4. Historical Data Management
-- Download and store historical prices
-- Dividend adjustment handling
-- Corporate action processing
-- Data quality validation
-- Efficient storage format (Parquet?)
+### 12. Alternative Data Integration
+- Sentiment indicators
+- Macro nowcasting
+- Factor timing signals
+- Cross-asset momentum
 
-### 6. Fund Replication and Exposure Discovery System
-- Build in-system fund return replication capabilities
-- Design optimal exposure categories (factors, asset classes, strategies)
-- Access and store return time series for replication assets
-- Implement regression-based exposure discovery
-- Create replication quality metrics (R², tracking error, etc.)
-- Support time-varying exposures and regime changes
-- Automated alerts when replication quality degrades
-- Tools to discover exposures for new funds
-- Version control for exposure definitions as they evolve
+### 13. Reporting System
+- Exposure-based attribution
+- Risk factor analysis
+- Custom report builder
+- Automated distribution
 
-### 7. Alternative Strategy Integration
-- Factor exposure calculation
-- Trend following signal integration
-- Carry strategy modeling
-- Return decomposition by strategy
+### 14. Multi-Strategy Integration
+- Combine systematic strategies
+- Dynamic strategy allocation
+- Cross-strategy risk management
+- Unified performance tracking
 
-### 8. Benchmark Integration
-- Load standard benchmarks (SPY, AGG, etc.)
-- Custom benchmark creation
-- Tracking error calculation
-- Relative performance analytics
+## Technical Infrastructure
 
-### 9. Advanced Position Features
-- Options position support
-- Multi-currency handling
-- Performance by tax lot
-- Fractional share handling
-- Account type constraints (IRA vs taxable)
-
-### 10. Web API Foundation
-- FastAPI application structure
-- Portfolio CRUD endpoints
-- Market data endpoints
-- WebSocket for real-time updates
-- API authentication
-
-## Lower Priority
-
-### 8. Reporting System
-- PDF report generation
-- Performance dashboards
-- Risk reports
-- Tax reports
-- Email delivery system
-
-### 9. Backtesting Framework
-- Strategy definition system
-- Historical simulation engine
-- Transaction cost modeling
-- Performance metrics
-- Walk-forward analysis
-
-### 10. Advanced Optimization
-- Multi-period optimization
-- Robust optimization
-- CVaR optimization
-- Factor-based optimization
-- Machine learning predictions
-
-### 11. User Interface
-- React frontend setup
-- Portfolio visualization
-- Interactive charts
-- Real-time updates
-- Mobile responsive design
-
-### 12. Advanced Features
-- Rebalancing automation
-- Tax loss harvesting
-- Monte Carlo simulation
-- Scenario analysis
-- Integration with brokers
-
-## Technical Debt / Improvements
-
-### Code Quality
+### Code Quality & Testing
 - Increase test coverage to 90%+
-- Add integration tests
 - Performance benchmarks
-- API documentation (OpenAPI)
-- Code profiling
+- API documentation
+- Continuous integration
 
-### Infrastructure
+### Deployment & Scaling
 - Docker containerization
-- CI/CD pipeline
-- Database integration (PostgreSQL)
-- Redis for caching
+- Cloud deployment (AWS/GCP)
+- Database integration
 - Monitoring and alerting
 
 ### Documentation
-- API reference documentation
-- Architecture diagrams
-- Deployment guide
-- Contributing guidelines
+- Mathematical framework docs
+- API reference
 - Video tutorials
+- Case studies
 
 ## Research Topics
 
-### Methodological
-- Handling leverage in mean-variance optimization
-- Incorporating alternative risk measures
-- Multi-asset class correlation modeling
-- Tail risk hedging strategies
-- Factor timing models
+### Exposure Modeling
+- Time-varying exposures
+- Non-linear exposure relationships
+- Regime-dependent mappings
+- Higher-order effects
 
-### Technical
-- Async/await for data fetching
-- Distributed optimization for large portfolios
-- Real-time data streaming architecture
-- Kubernetes deployment
-- GraphQL vs REST API
+### Risk Modeling
+- Fat-tail risk measures
+- Liquidity-adjusted risk
+- Concentration penalties
+- Stress testing
+
+### Optimization Methods
+- Hierarchical risk parity
+- Nested optimization
+- Online/adaptive optimization
+- Reinforcement learning
 
 ## Notes
-- Tasks should be broken down into ~1-2 day chunks when assigned
-- Each task should have clear acceptance criteria
-- Consider dependencies between tasks
-- Regular review and reprioritization needed
+- Exposure-based optimization is the core differentiator
+- Each task should maintain mathematical rigor
+- Focus on practical implementation
+- Regular validation against real portfolios
+- Keep the long (10+ year) history requirement in mind
+
+## Completed Tasks (Archive)
+- See `/PROJECT_CONTEXT/TASKS/completed/` for completed work
+- Data layer implementation ✅
+- Portfolio optimization integration ✅
+- Raw and transformed data providers ✅

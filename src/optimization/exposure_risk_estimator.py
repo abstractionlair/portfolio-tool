@@ -62,25 +62,34 @@ class ExposureRiskEstimator:
     def __init__(
         self,
         exposure_universe: ExposureUniverse,
+        forecast_horizon: int,
+        parameter_config_path: str = "config/optimal_parameters_v2.yaml",
         parameter_optimizer: Optional[ParameterOptimizer] = None,
         data_fetcher: Optional[MultiFrequencyDataFetcher] = None
     ):
-        """Initialize exposure risk estimator.
+        """Initialize exposure risk estimator with fixed forecast horizon.
         
         Args:
             exposure_universe: Universe of exposures to analyze
+            forecast_horizon: Fixed forecast horizon for all risk estimates (days)
+            parameter_config_path: Path to horizon-specific parameter configuration
             parameter_optimizer: Optimizer with validated parameters (optional)
             data_fetcher: Data fetcher for historical returns (optional)
         """
         self.exposure_universe = exposure_universe
+        self.forecast_horizon = forecast_horizon
+        self.parameter_config_path = parameter_config_path
         self.parameter_optimizer = parameter_optimizer
         self.data_fetcher = data_fetcher or MultiFrequencyDataFetcher()
+        
+        # Load horizon-specific parameters
+        self.parameters = self._load_horizon_specific_parameters(forecast_horizon)
         
         # Cache for exposure returns and risk estimates
         self._exposure_returns_cache = {}
         self._risk_estimates_cache = {}
         
-        # Default parameters if no optimizer provided
+        # Default parameters if no horizon-specific config available
         self._default_params = {
             'ewma_lambda': 0.94,
             'min_periods': 30,
@@ -88,27 +97,51 @@ class ExposureRiskEstimator:
         }
         
         logger.info(f"Initialized ExposureRiskEstimator with {len(exposure_universe)} exposures")
+        logger.info(f"Fixed forecast horizon: {forecast_horizon} days")
+        logger.info(f"Parameter config: {parameter_config_path}")
+    
+    def _load_horizon_specific_parameters(self, horizon: int) -> Dict:
+        """Load parameters optimized for this specific horizon."""
+        try:
+            import yaml
+            with open(self.parameter_config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Get parameters for this horizon
+            horizon_key = f'horizon_{horizon}_parameters'
+            if horizon_key in config:
+                logger.info(f"Loaded parameters optimized for {horizon}-day horizon")
+                return config[horizon_key]
+            else:
+                logger.warning(f"No parameters found for {horizon}-day horizon, using defaults")
+                return {}
+                
+        except FileNotFoundError:
+            logger.warning(f"Parameter config file not found: {self.parameter_config_path}")
+            return {}
+        except Exception as e:
+            logger.error(f"Error loading parameter config: {e}")
+            return {}
     
     def estimate_exposure_risks(
         self,
         exposures: List[str],
         estimation_date: datetime,
         lookback_days: int = 756,  # 3 years default
-        forecast_horizon: int = 21,  # 1 month default
         method: str = 'optimal'  # 'optimal', 'ewma', 'garch', 'historical'
+        # No forecast_horizon parameter - uses self.forecast_horizon
     ) -> Dict[str, ExposureRiskEstimate]:
         """
-        Estimate volatilities for multiple exposures.
+        Estimate volatilities for multiple exposures using globally configured horizon.
         
         Args:
             exposures: List of exposure IDs
             estimation_date: Date for estimation
             lookback_days: Historical data to use
-            forecast_horizon: Days ahead to forecast
-            method: Estimation method
+            method: Estimation method ('optimal', 'ewma', 'garch', 'historical')
             
         Returns:
-            Dictionary of exposure_id -> risk estimate
+            Dictionary of exposure_id -> risk estimate (all for self.forecast_horizon)
         """
         logger.info(f"Estimating risks for {len(exposures)} exposures using {method} method")
         
@@ -117,7 +150,7 @@ class ExposureRiskEstimator:
         for exposure_id in exposures:
             try:
                 estimate = self._estimate_single_exposure_risk(
-                    exposure_id, estimation_date, lookback_days, forecast_horizon, method
+                    exposure_id, estimation_date, lookback_days, self.forecast_horizon, method
                 )
                 
                 if estimate:

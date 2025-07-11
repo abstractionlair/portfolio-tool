@@ -116,6 +116,63 @@ class ParameterOptimizer:
         
         logger.info(f"Initialized ParameterOptimizer with {len(exposure_universe)} exposures")
     
+    def optimize_for_horizon(
+        self,
+        exposures: List[str],
+        target_horizon: int,
+        start_date: datetime,
+        end_date: datetime,
+        validation_method: str = "walk_forward"
+    ) -> Dict[str, Any]:
+        """
+        Optimize parameters for all exposures for a specific forecast horizon.
+        
+        Args:
+            exposures: List of exposure IDs to optimize
+            target_horizon: Forecast horizon in days (must be same for all)
+            start_date: Start of historical data
+            end_date: End of historical data
+            validation_method: Method for validation
+            
+        Returns:
+            Dictionary of exposure_id -> optimal parameters for the horizon
+        """
+        logger.info(f"Starting horizon-specific parameter optimization for {target_horizon}-day horizon...")
+        
+        # Store target horizon for use in validation
+        self.target_horizon = target_horizon
+        
+        # Get exposures to test
+        if exposures:
+            exposure_objects = [self.exposure_universe.get_exposure(exp_id) 
+                              for exp_id in exposures if self.exposure_universe.get_exposure(exp_id)]
+        else:
+            exposure_objects = list(self.exposure_universe.exposures.values())
+        
+        # Filter for implementable exposures
+        implementable_exposures = []
+        for exposure in exposure_objects:
+            impl = exposure.get_preferred_implementation()
+            if impl and impl.get_primary_tickers():
+                implementable_exposures.append(exposure)
+        
+        logger.info(f"Testing {len(implementable_exposures)} implementable exposures for {target_horizon}-day horizon")
+        
+        # Load historical data for all exposures
+        exposure_data = self._load_exposure_data(implementable_exposures, start_date, end_date)
+        
+        if not exposure_data:
+            raise ValueError("No exposure data could be loaded for optimization")
+        
+        # Run parameter grid search with horizon-specific validation
+        self._run_horizon_specific_grid_search(exposure_data, start_date, end_date, target_horizon)
+        
+        # Analyze results and find optimal parameters for this horizon
+        self.optimal_parameters = self._analyze_horizon_optimization_results(target_horizon)
+        
+        logger.info(f"Parameter optimization completed for {target_horizon}-day horizon")
+        return self.optimal_parameters
+
     def optimize_all_parameters(
         self,
         start_date: datetime,
@@ -572,6 +629,130 @@ class ParameterOptimizer:
             combined_score = vol_score
         
         return combined_score
+    
+    def _run_horizon_specific_grid_search(
+        self,
+        exposure_data: Dict[str, pd.Series],
+        start_date: datetime,
+        end_date: datetime,
+        target_horizon: int
+    ) -> None:
+        """Run grid search optimized for specific forecast horizon."""
+        logger.info(f"Running horizon-specific grid search for {target_horizon}-day forecasts...")
+        
+        # Create parameter combinations (exclude horizon since it's fixed)
+        param_combinations = list(product(
+            [Frequency.DAILY],  # Focus on daily frequency for horizon-specific optimization
+            self.config.lambda_values,
+            self.config.min_periods_values
+        ))
+        
+        logger.info(f"Testing {len(param_combinations)} parameter combinations for {target_horizon}-day horizon")
+        
+        # Test each combination with the fixed horizon
+        for i, (frequency, lambda_val, min_periods) in enumerate(param_combinations):
+            if i % 10 == 0:
+                logger.info(f"Progress: {i+1}/{len(param_combinations)} combinations")
+            
+            try:
+                result = self._validate_parameter_combination(
+                    exposure_data, frequency, lambda_val, min_periods, target_horizon
+                )
+                
+                if result and result.sample_size > 0:
+                    self.validation_results.append(result)
+                    
+            except Exception as e:
+                logger.debug(f"Failed parameter combination λ={lambda_val}, "
+                           f"min_periods={min_periods}, horizon={target_horizon}: {e}")
+                continue
+        
+        logger.info(f"Completed horizon-specific grid search: {len(self.validation_results)} valid results")
+    
+    def _analyze_horizon_optimization_results(self, target_horizon: int) -> Dict[str, Any]:
+        """Analyze optimization results for specific horizon."""
+        if not self.validation_results:
+            logger.warning("No validation results to analyze")
+            return {}
+        
+        logger.info(f"Analyzing {len(self.validation_results)} validation results for {target_horizon}-day horizon")
+        
+        # Convert results to DataFrame for analysis
+        results_data = []
+        for result in self.validation_results:
+            if result.horizon == target_horizon:  # Only include results for target horizon
+                results_data.append({
+                    'frequency': result.frequency.value,
+                    'lambda': result.lambda_param,
+                    'min_periods': result.min_periods,
+                    'horizon': result.horizon,
+                    'volatility_mse': result.volatility_mse,
+                    'volatility_mae': result.volatility_mae,
+                    'volatility_qlike': result.volatility_qlike,
+                    'correlation_frobenius': result.correlation_frobenius,
+                    'combined_score': result.combined_score,
+                    'sample_size': result.sample_size
+                })
+        
+        if not results_data:
+            logger.warning(f"No results found for horizon {target_horizon}")
+            return {}
+        
+        results_df = pd.DataFrame(results_data)
+        
+        # Find optimal parameters for different components
+        optimal_params = {
+            'global_settings': {
+                'forecast_horizon': target_horizon,
+                'optimization_date': datetime.now().strftime('%Y-%m-%d'),
+                'total_combinations_tested': len(results_data),
+                'best_combined_score': results_df['combined_score'].min()
+            },
+            f'horizon_{target_horizon}_parameters': {
+                'volatility': {},
+                'correlation': {}
+            }
+        }
+        
+        # Find best volatility parameters (lowest MSE)
+        best_vol_idx = results_df['volatility_mse'].idxmin()
+        best_vol_result = results_df.loc[best_vol_idx]
+        
+        optimal_params[f'horizon_{target_horizon}_parameters']['volatility'] = {
+            'method': 'ewma',
+            'lambda': float(best_vol_result['lambda']),
+            'min_periods': int(best_vol_result['min_periods']),
+            'validation_score': float(best_vol_result['volatility_mse']),
+            'sample_size': int(best_vol_result['sample_size'])
+        }
+        
+        # Find best correlation parameters (lowest Frobenius norm)
+        best_corr_idx = results_df['correlation_frobenius'].idxmin()
+        best_corr_result = results_df.loc[best_corr_idx]
+        
+        optimal_params[f'horizon_{target_horizon}_parameters']['correlation'] = {
+            'method': 'ewma',
+            'lambda': float(best_corr_result['lambda']),
+            'min_periods': int(best_corr_result['min_periods']),
+            'validation_score': float(best_corr_result['correlation_frobenius']),
+            'sample_size': int(best_corr_result['sample_size'])
+        }
+        
+        # Add summary statistics
+        optimal_params['validation_summary'] = {
+            'volatility_mse_range': [float(results_df['volatility_mse'].min()), float(results_df['volatility_mse'].max())],
+            'correlation_frobenius_range': [float(results_df['correlation_frobenius'].min()), float(results_df['correlation_frobenius'].max())],
+            'lambda_range_tested': [float(results_df['lambda'].min()), float(results_df['lambda'].max())],
+            'min_periods_range_tested': [int(results_df['min_periods'].min()), int(results_df['min_periods'].max())]
+        }
+        
+        logger.info(f"Found optimal parameters for {target_horizon}-day horizon:")
+        logger.info(f"  Volatility: λ={optimal_params[f'horizon_{target_horizon}_parameters']['volatility']['lambda']:.3f}, "
+                   f"min_periods={optimal_params[f'horizon_{target_horizon}_parameters']['volatility']['min_periods']}")
+        logger.info(f"  Correlation: λ={optimal_params[f'horizon_{target_horizon}_parameters']['correlation']['lambda']:.3f}, "
+                   f"min_periods={optimal_params[f'horizon_{target_horizon}_parameters']['correlation']['min_periods']}")
+        
+        return optimal_params
     
     def _analyze_optimization_results(self) -> Dict[str, Any]:
         """Analyze optimization results and determine optimal parameters."""

@@ -1,4 +1,4 @@
-# Current Task: Implement Global Forecast Horizon for Parameter Optimization
+# Task: Implement Global Forecast Horizon for Parameter Optimization
 
 **Status**: NOT STARTED  
 **Priority**: HIGH  
