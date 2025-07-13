@@ -16,8 +16,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 try:
-    from ..data.exposure_universe import ExposureUniverse
-    from ..data.multi_frequency import Frequency, MultiFrequencyDataFetcher, ReturnCompounding
+    from data.exposure_universe import ExposureUniverse
+    from data.multi_frequency import Frequency, MultiFrequencyDataFetcher, ReturnCompounding
     from .parameter_optimization import ParameterOptimizer
     from .ewma import EWMAEstimator, EWMAParameters, GARCHEstimator
 except ImportError:
@@ -250,7 +250,7 @@ class ExposureRiskEstimator:
         
         # Get volatility estimates
         risk_estimates = self.estimate_exposure_risks(
-            exposures, estimation_date, forecast_horizon=forecast_horizon, method=method
+            exposures, estimation_date, method=method
         )
         
         # Extract volatilities
@@ -384,8 +384,8 @@ class ExposureRiskEstimator:
                 returns = self.data_fetcher._fetch_single_ticker_returns(
                     impl.ticker, start_date, estimation_date, Frequency.DAILY, validate=True
                 )
-            elif impl.type == 'etf_average' and impl.tickers:
-                # Average returns across multiple tickers
+            elif impl.type in ['etf_average', 'fund_average'] and impl.tickers:
+                # Average returns across multiple tickers (ETFs or mutual funds)
                 ticker_returns = []
                 for ticker in impl.tickers:
                     try:
