@@ -116,6 +116,272 @@ class ParameterOptimizer:
         
         logger.info(f"Initialized ParameterOptimizer with {len(exposure_universe)} exposures")
     
+    def select_global_horizon(
+        self,
+        candidate_horizons: List[int] = [5, 21, 63],
+        exposures: Optional[List[str]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> int:
+        """
+        Select optimal global forecast horizon by testing which horizon
+        gives best out-of-sample prediction accuracy across all exposures.
+        
+        Args:
+            candidate_horizons: List of horizons to test (days)
+            exposures: List of exposure IDs to test (None for all implementable)
+            start_date: Start date for testing (None for default)
+            end_date: End date for testing (None for default)
+            
+        Returns:
+            Optimal horizon in days
+        """
+        logger.info(f"Selecting optimal global horizon from candidates: {candidate_horizons}")
+        
+        # Set default dates if not provided
+        if start_date is None:
+            start_date = datetime(2020, 1, 1)
+        if end_date is None:
+            end_date = datetime.now() - timedelta(days=30)
+        
+        # Get exposures to test
+        if exposures:
+            exposure_objects = [self.exposure_universe.get_exposure(exp_id) 
+                              for exp_id in exposures if self.exposure_universe.get_exposure(exp_id)]
+        else:
+            exposure_objects = list(self.exposure_universe.exposures.values())
+        
+        # Filter for implementable exposures
+        implementable_exposures = []
+        for exposure in exposure_objects:
+            impl = exposure.get_preferred_implementation()
+            if impl and impl.get_primary_tickers():
+                implementable_exposures.append(exposure)
+        
+        if len(implementable_exposures) < 2:
+            logger.warning("Insufficient implementable exposures for horizon selection, using default 21 days")
+            return 21
+        
+        logger.info(f"Testing {len(implementable_exposures)} exposures for horizon selection")
+        
+        # Load historical data for all exposures
+        exposure_data = self._load_exposure_data(implementable_exposures, start_date, end_date)
+        
+        if len(exposure_data) < 2:
+            logger.warning("Insufficient exposure data for horizon selection, using default 21 days")
+            return 21
+        
+        horizon_scores = {}
+        
+        # Test each horizon using simplified scoring
+        for horizon in candidate_horizons:
+            logger.info(f"Testing {horizon}-day horizon...")
+            
+            # Test a subset of exposures for efficiency
+            test_exposures = list(exposure_data.keys())[:5] if len(exposure_data) > 5 else list(exposure_data.keys())
+            scores = []
+            
+            for exposure_id in test_exposures:
+                try:
+                    # Use the new simplified scoring method
+                    score = self._score_horizon_for_exposure(
+                        exposure_id, horizon, start_date, end_date
+                    )
+                    
+                    if score is not None and np.isfinite(score):
+                        scores.append(score)
+                        logger.debug(f"Horizon {horizon} for {exposure_id}: MSE = {score:.6f}")
+                        
+                except Exception as e:
+                    logger.debug(f"Failed to test horizon {horizon} for {exposure_id}: {e}")
+                    continue
+            
+            if scores:
+                # Average prediction accuracy across exposures
+                avg_score = np.mean(scores)
+                horizon_scores[horizon] = avg_score
+                logger.info(f"Horizon {horizon} days: average MSE = {avg_score:.6f} ({len(scores)} exposures)")
+            else:
+                logger.warning(f"No valid scores for horizon {horizon}")
+        
+        if not horizon_scores:
+            logger.warning("No valid horizon scores, using default 21 days")
+            return 21
+        
+        # Select horizon with lowest average prediction error
+        optimal_horizon = min(horizon_scores.keys(), key=lambda h: horizon_scores[h])
+        optimal_score = horizon_scores[optimal_horizon]
+        
+        logger.info(f"Selected optimal horizon: {optimal_horizon} days (MSE: {optimal_score:.6f})")
+        
+        # Log all horizon results for comparison
+        logger.info("Horizon selection results:")
+        for horizon in sorted(horizon_scores.keys()):
+            score = horizon_scores[horizon]
+            status = "SELECTED" if horizon == optimal_horizon else ""
+            logger.info(f"  {horizon:2d} days: MSE={score:.6f} {status}")
+        
+        return optimal_horizon
+    
+    def _test_horizon_prediction_accuracy(
+        self,
+        returns: pd.Series,
+        horizon: int,
+        min_train_periods: int = 100,
+        test_windows: int = 20
+    ) -> Optional[float]:
+        """
+        Test prediction accuracy for a specific horizon using walk-forward validation.
+        
+        Args:
+            returns: Return series to test
+            horizon: Forecast horizon in days
+            min_train_periods: Minimum training periods
+            test_windows: Number of test windows
+            
+        Returns:
+            Average prediction MSE, or None if insufficient data
+        """
+        if len(returns) < min_train_periods + horizon + test_windows:
+            return None
+        
+        try:
+            from ..optimization.ewma import EWMAEstimator, EWMAParameters
+            from ..data.multi_frequency import Frequency
+        except ImportError:
+            from optimization.ewma import EWMAEstimator, EWMAParameters
+            from data.multi_frequency import Frequency
+        
+        # Use reasonable default parameters for testing
+        ewma_params = EWMAParameters(lambda_=0.94, min_periods=30)
+        estimator = EWMAEstimator(ewma_params)
+        
+        prediction_errors = []
+        
+        # Walk-forward validation
+        for i in range(min_train_periods, len(returns) - horizon, max(1, len(returns) // test_windows)):
+            try:
+                # Training data
+                train_data = returns.iloc[:i]
+                
+                # Forecast volatility for the horizon
+                forecast_vol = estimator.forecast_volatility(
+                    train_data, 
+                    horizon=horizon, 
+                    method='simple',
+                    annualize=False,
+                    frequency=Frequency.DAILY
+                )
+                
+                # Realized volatility over the horizon
+                future_returns = returns.iloc[i:i+horizon]
+                if len(future_returns) == horizon:
+                    if horizon == 1:
+                        realized_vol = abs(future_returns.iloc[0])
+                    else:
+                        realized_vol = future_returns.std()
+                    
+                    # Calculate prediction error
+                    if np.isfinite(forecast_vol) and np.isfinite(realized_vol) and realized_vol > 0:
+                        error = (forecast_vol - realized_vol) ** 2
+                        prediction_errors.append(error)
+                        
+            except Exception:
+                continue
+        
+        if len(prediction_errors) < 5:
+            return None
+        
+        return np.mean(prediction_errors)
+    
+    def _score_horizon_for_exposure(
+        self,
+        exposure_id: str,
+        horizon: int,
+        start_date: datetime,
+        end_date: datetime
+    ) -> Optional[float]:
+        """Score a specific horizon for an exposure using walk-forward validation.
+        
+        Simple implementation using historical volatility as specified in task.
+        
+        Args:
+            exposure_id: Exposure ID to test
+            horizon: Forecast horizon in days
+            start_date: Start date for testing
+            end_date: End date for testing
+            
+        Returns:
+            Average MSE for this horizon, or None if insufficient data
+        """
+        try:
+            # Load returns using existing data loading infrastructure
+            exposure = self.exposure_universe.get_exposure(exposure_id)
+            if not exposure:
+                return None
+            
+            impl = exposure.get_preferred_implementation()
+            if not impl:
+                return None
+            
+            tickers = impl.get_primary_tickers()
+            if not tickers:
+                return None
+            
+            # Use first ticker for simplicity (could be enhanced later)
+            ticker = tickers[0]
+            
+            try:
+                from ..data.multi_frequency import Frequency
+            except ImportError:
+                from data.multi_frequency import Frequency
+            
+            # Fetch returns data
+            returns_data = self.multi_freq_fetcher._fetch_single_ticker_returns(
+                ticker, start_date, end_date, Frequency.DAILY, validate=True
+            )
+            
+            if returns_data is None or len(returns_data) < 252:  # Need 1 year minimum
+                return None
+                
+            # Walk-forward validation with simple historical volatility
+            test_size = horizon * 3  # Test on 3 periods
+            train_size = 252  # 1 year training
+            
+            if len(returns_data) < train_size + test_size:
+                return None
+            
+            mse_scores = []
+            
+            # Simple walk-forward: train, predict h-days ahead, measure error
+            for i in range(0, len(returns_data) - train_size - test_size, 21):  # Step by ~1 month
+                train_data = returns_data.iloc[i:i+train_size]
+                
+                # Calculate historical volatility (simple approach)
+                train_vol = train_data.std() * np.sqrt(252)  # Annualized
+                
+                # Actual volatility over next h days
+                actual_data = returns_data.iloc[i+train_size:i+train_size+horizon]
+                if len(actual_data) < horizon:
+                    continue
+                    
+                # Scale actual volatility to be comparable
+                if horizon == 1:
+                    actual_vol = abs(actual_data.iloc[0]) * np.sqrt(252)
+                else:
+                    actual_vol = actual_data.std() * np.sqrt(252/horizon) * np.sqrt(horizon)
+                
+                # MSE between predicted and actual volatility
+                if np.isfinite(train_vol) and np.isfinite(actual_vol):
+                    mse = (train_vol - actual_vol) ** 2
+                    mse_scores.append(mse)
+            
+            return np.mean(mse_scores) if len(mse_scores) >= 3 else None
+            
+        except Exception as e:
+            logger.debug(f"Failed to score horizon {horizon} for {exposure_id}: {e}")
+            return None
+    
     def optimize_for_horizon(
         self,
         exposures: List[str],
@@ -177,19 +443,42 @@ class ParameterOptimizer:
         self,
         start_date: datetime,
         end_date: datetime,
+        target_horizon: Optional[int] = None,
+        auto_select_horizon: bool = True,
         exposure_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """Optimize all parameters using comprehensive backtesting.
+        """Main optimization entry point as specified in task.
         
         Args:
-            start_date: Start date for analysis
-            end_date: End date for analysis
+            start_date: Start date for optimization
+            end_date: End date for optimization
+            target_horizon: Specific horizon to use (overrides auto-selection)
+            auto_select_horizon: Whether to auto-select optimal horizon
             exposure_ids: Specific exposures to test (None for all)
             
         Returns:
-            Dictionary with optimal parameters and results
+            Optimization results including selected horizon
         """
         logger.info("Starting comprehensive parameter optimization...")
+        
+        # Step 1: Determine forecast horizon as specified in task
+        if target_horizon is None and auto_select_horizon:
+            logger.info("Auto-selecting optimal forecast horizon...")
+            target_horizon = self.select_global_horizon(
+                candidate_horizons=[5, 21, 63],
+                exposures=exposure_ids,
+                start_date=start_date,
+                end_date=end_date
+            )
+            logger.info(f"Auto-selected global horizon: {target_horizon} days")
+        elif target_horizon is None:
+            target_horizon = 21  # Default as specified in task
+            logger.info(f"Using default horizon: {target_horizon} days")
+        else:
+            logger.info(f"Using provided target horizon: {target_horizon} days")
+        
+        # Store target horizon for use in validation
+        self.target_horizon = target_horizon
         
         # Get exposures to test
         if exposure_ids:
@@ -213,14 +502,28 @@ class ParameterOptimizer:
         if not exposure_data:
             raise ValueError("No exposure data could be loaded for optimization")
         
-        # Run parameter grid search
-        self._run_parameter_grid_search(exposure_data, start_date, end_date)
+        # Run parameter grid search with target horizon
+        self._run_parameter_grid_search(exposure_data, start_date, end_date, target_horizon)
         
         # Analyze results and find optimal parameters
-        self.optimal_parameters = self._analyze_optimization_results()
+        optimization_results = self._analyze_optimization_results()
+        
+        # Update results to include global settings as specified in task
+        results = {
+            'global_settings': {
+                'forecast_horizon': target_horizon,
+                'optimization_date': datetime.now(),
+                'auto_selected': target_horizon is None and auto_select_horizon,
+                'optimization_method': 'horizon_aware'
+            }
+        }
+        
+        # Merge with optimization results
+        if isinstance(optimization_results, dict):
+            results.update(optimization_results)
         
         logger.info("Parameter optimization completed")
-        return self.optimal_parameters
+        return results
     
     def _load_exposure_data(
         self,
@@ -295,29 +598,29 @@ class ParameterOptimizer:
         self,
         exposure_data: Dict[str, pd.Series],
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        target_horizon: int
     ) -> None:
         """Run comprehensive grid search over all parameters."""
         logger.info("Running parameter grid search...")
         
-        # Create parameter combinations
+        # Create parameter combinations for the target horizon
         param_combinations = list(product(
             self.config.test_frequencies,
             self.config.lambda_values,
-            self.config.min_periods_values,
-            self.config.forecast_horizons
+            self.config.min_periods_values
         ))
         
-        logger.info(f"Testing {len(param_combinations)} parameter combinations")
+        logger.info(f"Testing {len(param_combinations)} parameter combinations for {target_horizon}-day horizon")
         
-        # Test each combination
-        for i, (frequency, lambda_val, min_periods, horizon) in enumerate(param_combinations):
+        # Test each combination with the target horizon
+        for i, (frequency, lambda_val, min_periods) in enumerate(param_combinations):
             if i % 20 == 0:
                 logger.info(f"Progress: {i+1}/{len(param_combinations)} combinations")
             
             try:
                 result = self._validate_parameter_combination(
-                    exposure_data, frequency, lambda_val, min_periods, horizon
+                    exposure_data, frequency, lambda_val, min_periods, target_horizon
                 )
                 
                 if result and result.sample_size > 0:
@@ -325,7 +628,7 @@ class ParameterOptimizer:
                     
             except Exception as e:
                 logger.debug(f"Failed parameter combination {frequency.value}, λ={lambda_val}, "
-                           f"min_periods={min_periods}, horizon={horizon}: {e}")
+                           f"min_periods={min_periods}, horizon={target_horizon}: {e}")
                 continue
         
         logger.info(f"Completed grid search: {len(self.validation_results)} valid results")
@@ -774,74 +1077,88 @@ class ParameterOptimizer:
             for r in self.validation_results
         ])
         
-        # Find optimal parameters by horizon
-        optimal_by_horizon = {}
+        # Get the target horizon (should be consistent across all results)
+        target_horizon = getattr(self, 'target_horizon', 21)
+        horizon_results = results_df[results_df['horizon'] == target_horizon]
         
-        for horizon in self.config.forecast_horizons:
-            horizon_results = results_df[results_df['horizon'] == horizon]
-            # Filter out NaN values
-            horizon_results = horizon_results.dropna(subset=['combined_score'])
-            
-            if len(horizon_results) > 0:
-                # Find best combination (lowest combined score)
-                best_idx = horizon_results['combined_score'].idxmin()
-                
-                # Check if the index is valid (not NaN)
-                if pd.notna(best_idx):
-                    best_result = horizon_results.loc[best_idx]
-                else:
-                    continue
-                
-                optimal_by_horizon[f'{horizon}_period'] = {
-                    'frequency': best_result['frequency'],
-                    'lambda': best_result['lambda'],
-                    'min_periods': int(best_result['min_periods']),
-                    'combined_score': best_result['combined_score'],
-                    'volatility_mse': best_result['vol_mse'],
-                    'hit_rate': best_result['vol_hit_rate']
-                }
+        # Filter out NaN values
+        horizon_results = horizon_results.dropna(subset=['combined_score'])
         
-        # Find overall optimal parameters (lowest average score across horizons)
-        # Filter out NaN values first
-        valid_results = results_df.dropna(subset=['combined_score'])
+        if len(horizon_results) == 0:
+            logger.warning(f"No valid results for target horizon {target_horizon}")
+            return {
+                'global_settings': {
+                    'forecast_horizon': target_horizon,
+                    'optimization_date': datetime.now().strftime('%Y-%m-%d'),
+                    'optimization_method': 'horizon_aware'
+                },
+                'method_selection': {},
+                'optimal_parameters': {}
+            }
         
-        if len(valid_results) == 0:
-            raise ValueError("No valid optimization results found")
+        # Find best overall parameters for the target horizon
+        best_idx = horizon_results['combined_score'].idxmin()
+        best_result = horizon_results.loc[best_idx]
         
-        param_scores = valid_results.groupby(['frequency', 'lambda', 'min_periods'])['combined_score'].mean()
-        overall_best = param_scores.idxmin()
-        
-        overall_optimal = {
-            'frequency': overall_best[0],
-            'lambda': overall_best[1],
-            'min_periods': int(overall_best[2]),
-            'average_score': param_scores[overall_best]
+        optimal_parameters = {
+            'frequency': best_result['frequency'],
+            'lambda': best_result['lambda'],
+            'min_periods': int(best_result['min_periods']),
+            'combined_score': best_result['combined_score'],
+            'volatility_mse': best_result['vol_mse'],
+            'hit_rate': best_result['vol_hit_rate']
         }
         
-        # Frequency analysis (use valid results)
-        freq_analysis = valid_results.groupby('frequency').agg({
-            'combined_score': ['mean', 'std', 'count'],
-            'vol_hit_rate': 'mean'
-        }).round(4)
-        
-        # Lambda analysis (use valid results)
-        lambda_analysis = valid_results.groupby('lambda').agg({
-            'combined_score': ['mean', 'std'],
-            'vol_hit_rate': 'mean'
-        }).round(4)
-        
         return {
-            'overall_optimal': overall_optimal,
-            'optimal_by_horizon': optimal_by_horizon,
-            'frequency_analysis': freq_analysis.to_dict(),
-            'lambda_analysis': lambda_analysis.to_dict(),
-            'total_combinations_tested': len(self.validation_results),
-            'summary_statistics': {
-                'best_frequency': valid_results.groupby('frequency')['combined_score'].mean().idxmin(),
-                'best_lambda': valid_results.groupby('lambda')['combined_score'].mean().idxmin(),
-                'best_min_periods': valid_results.groupby('min_periods')['combined_score'].mean().idxmin(),
-                'mean_hit_rate': valid_results['vol_hit_rate'].mean(),
-                'mean_score': valid_results['combined_score'].mean()
+            'global_settings': {
+                'forecast_horizon': target_horizon,
+                'optimization_date': datetime.now().strftime('%Y-%m-%d'),
+                'optimization_method': 'horizon_aware',
+                'total_combinations_tested': len(results_df),
+                'best_combined_score': optimal_parameters['combined_score']
+            },
+            'method_selection': {
+                # This would be populated by exposure-specific optimization
+                # For now, we show the best overall method
+                'default_method': 'ewma',  # This could be determined from the parameter grid
+                'best_frequency': optimal_parameters['frequency'],
+                'selection_criteria': 'lowest_combined_score'
+            },
+            'optimal_parameters': {
+                f'horizon_{target_horizon}_parameters': {
+                    'volatility': {
+                        'method': 'ewma',  # Based on the parameter grid results
+                        'lambda': float(optimal_parameters['lambda']),
+                        'min_periods': int(optimal_parameters['min_periods']),
+                        'frequency': optimal_parameters['frequency'],
+                        'validation_score': float(optimal_parameters['combined_score']),
+                        'mse': float(optimal_parameters['volatility_mse']),
+                        'hit_rate': float(optimal_parameters['hit_rate'])
+                    }
+                }
+            },
+            'validation_summary': {
+                'target_horizon': target_horizon,
+                'total_results': len(horizon_results),
+                'best_combined_score': float(optimal_parameters['combined_score']),
+                'best_volatility_mse': float(optimal_parameters['volatility_mse']),
+                'best_hit_rate': float(optimal_parameters['hit_rate']),
+                'frequency_analysis': {
+                    freq: {
+                        'count': len(horizon_results[horizon_results['frequency'] == freq]),
+                        'avg_score': float(horizon_results[horizon_results['frequency'] == freq]['combined_score'].mean())
+                    }
+                    for freq in horizon_results['frequency'].unique()
+                    if len(horizon_results[horizon_results['frequency'] == freq]) > 0
+                },
+                'lambda_analysis': {
+                    lam: {
+                        'count': len(horizon_results[horizon_results['lambda'] == lam]),
+                        'avg_score': float(horizon_results[horizon_results['lambda'] == lam]['combined_score'].mean())
+                    }
+                    for lam in horizon_results['lambda'].unique()
+                    if len(horizon_results[horizon_results['lambda'] == lam]) > 0
+                }
             }
         }
     
@@ -871,6 +1188,140 @@ class ParameterOptimizer:
             })
         
         return pd.DataFrame(summary_data)
+    
+    def optimize_portfolio_level(
+        self,
+        candidate_horizons: List[int] = None,
+        start_date: datetime = None,
+        end_date: datetime = None
+    ) -> Dict:
+        """
+        Perform two-level optimization:
+        1. Optimize parameters for each horizon
+        2. Select best horizon based on portfolio-level accuracy
+        
+        Args:
+            candidate_horizons: Horizons to test (None for default [5, 21, 63])
+            start_date: Start date for optimization (None for default)
+            end_date: End date for optimization (None for default)
+            
+        Returns:
+            Complete optimization results with selected horizon
+        """
+        
+        if candidate_horizons is None:
+            candidate_horizons = [5, 21, 63]  # Weekly, monthly, quarterly
+        
+        if start_date is None:
+            start_date = datetime(2018, 1, 1)
+        if end_date is None:
+            end_date = datetime(2024, 12, 31)
+        
+        logger.info(f"Starting portfolio-level optimization with horizons: {candidate_horizons}")
+        
+        # Initialize portfolio-level optimizer
+        try:
+            from .portfolio_level_optimizer import PortfolioLevelOptimizer
+        except ImportError:
+            from portfolio_level_optimizer import PortfolioLevelOptimizer
+        
+        # Component optimizers placeholder (can be extended later)
+        component_optimizers = {}
+        
+        pl_optimizer = PortfolioLevelOptimizer(
+            self.exposure_universe,
+            component_optimizers
+        )
+        
+        # Run two-level optimization
+        results = pl_optimizer.optimize_all_horizons(
+            candidate_horizons=candidate_horizons,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        # Save results in new format
+        self._save_portfolio_level_results(results)
+        
+        return results
+    
+    def _save_portfolio_level_results(self, results: Dict) -> None:
+        """Save portfolio-level optimization results to configuration files."""
+        
+        import yaml
+        from pathlib import Path
+        
+        # Create output directory
+        output_dir = Path("output/portfolio_level_optimization")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save main results as YAML
+        config_file = Path("config/optimal_parameters_portfolio_level.yaml")
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        optimal_result = results['optimal_parameters']
+        
+        # Create configuration structure
+        config_data = {
+            'optimization_metadata': {
+                'optimization_date': datetime.now().strftime('%Y-%m-%d'),
+                'method': 'portfolio_level_two_stage',
+                'candidate_horizons': list(results['all_horizon_results'].keys()),
+                'test_portfolios': len(results.get('test_portfolios', [])),
+            },
+            'optimal_horizon': results['optimal_horizon'],
+            f'horizon_{results["optimal_horizon"]}_results': {
+                'goodness_score': optimal_result.goodness_score,
+                'portfolio_rmse': optimal_result.validation_metrics.get('rmse', 0.0),
+                'volatility_parameters': optimal_result.volatility_params,
+                'correlation_parameters': optimal_result.correlation_params,
+            },
+            'horizon_comparison': {}
+        }
+        
+        # Add comparison of all horizons
+        for horizon, result in results['all_horizon_results'].items():
+            config_data['horizon_comparison'][f'{horizon}_day'] = {
+                'goodness_score': result.goodness_score,
+                'portfolio_rmse': result.validation_metrics.get('rmse', 0.0)
+            }
+        
+        # Save YAML configuration
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f, default_flow_style=False, indent=2)
+        
+        logger.info(f"Saved portfolio-level configuration to {config_file}")
+        
+        # Save detailed results as JSON
+        import json
+        
+        # Convert dataclass to dict for JSON serialization
+        json_results = {
+            'optimal_horizon': results['optimal_horizon'],
+            'optimal_parameters': {
+                'horizon': optimal_result.horizon,
+                'goodness_score': optimal_result.goodness_score,
+                'validation_metrics': optimal_result.validation_metrics,
+                'volatility_params': optimal_result.volatility_params,
+                'correlation_params': optimal_result.correlation_params,
+            },
+            'all_horizon_results': {}
+        }
+        
+        for horizon, result in results['all_horizon_results'].items():
+            json_results['all_horizon_results'][str(horizon)] = {
+                'horizon': result.horizon,
+                'goodness_score': result.goodness_score,
+                'validation_metrics': result.validation_metrics,
+                'volatility_params': result.volatility_params,
+                'correlation_params': result.correlation_params,
+            }
+        
+        json_file = output_dir / "portfolio_level_results.json"
+        with open(json_file, 'w') as f:
+            json.dump(json_results, f, indent=2, default=str)
+        
+        logger.info(f"Saved detailed results to {json_file}")
 
 
 def run_exposure_universe_optimization(

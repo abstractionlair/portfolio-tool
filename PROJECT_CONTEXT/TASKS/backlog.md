@@ -5,10 +5,10 @@
 
 ## Immediate Priority - Exposure-Based Optimization Foundation
 
-### 1. ✅ Complete Analysis with All 16 Exposures Including Alternatives (COMPLETED)
+### 1. ✅ Portfolio-Level Two-Stage Parameter Optimization (COMPLETED)
 - **Status**: COMPLETE ✅ (2025-07-13)
-- **Approach**: Extended parameter optimization to include full exposure universe
-- **Key**: Fixed data availability issues, added alternative strategies, generated optimal parameters
+- **Approach**: Implemented sophisticated two-stage optimization framework
+- **Key**: Portfolio-level goodness scoring, per-exposure method selection, 63-day optimal horizon
 
 ### 2. Add Fund Exposure Mappings to Existing System
 - **Status**: READY (Task spec: add_fund_exposure_mappings.md)
