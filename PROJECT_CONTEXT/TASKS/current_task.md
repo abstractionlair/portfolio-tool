@@ -1,209 +1,215 @@
-# Current Task: Implement Global Forecast Horizon for Parameter Optimization
+# Task: Run Complete Analysis with All Exposures Including Alternatives
 
-**Status**: NOT STARTED  
+**Status**: COMPLETE ✅  
 **Priority**: HIGH  
-**Estimated Time**: 2 days  
-**Dependencies**: Existing parameter optimization framework
+**Completed**: 2025-07-13  
+**Approach**: MODIFY AND RERUN - Include all exposures, especially alternatives
 
-## Problem Statement
+## Problem
 
-The current parameter optimization system optimizes parameters independently for each exposure without ensuring a consistent forecast horizon. This creates an inconsistent optimization problem where different assets might have parameters optimized for different forward-looking periods.
-
-For portfolio optimization to be mathematically consistent, all risk estimates (volatilities and correlations) must be for the same forecast horizon.
-
-## Current Issues
-
-1. **No Global Horizon**: Parameters are optimized without a target forecast horizon
-2. **Inconsistent Estimates**: Different exposures could have different implicit horizons
-3. **Post-hoc Horizon Application**: The forecast horizon is only applied during risk estimation, not during parameter optimization
+The current demo only analyzed 8 exposures, missing critical alternative strategies like trend following and factor exposures. We need to run the complete analysis with all 16 exposures defined in the exposure universe.
 
 ## Requirements
 
-### 1. Global Forecast Horizon Configuration
-- Add a global forecast horizon setting that applies to all exposures
-- Common horizons: 1 day, 5 days (weekly), 21 days (monthly), 63 days (quarterly)
-- This should be configurable but consistent across all assets
+### 1. Update Demo Script to Include All Exposures
 
-### 2. Horizon-Aware Parameter Optimization
-Modify the parameter optimization to:
-- Accept a target forecast horizon as input
-- Optimize parameters specifically for predicting risk at that horizon
-- Validate predictions against realized volatility/correlation at the target horizon
+**Modify**: `examples/parameter_optimization_complete_demo.py`
 
-### 3. Updated Configuration Structure
-Create a new configuration format that clearly shows:
-- The global forecast horizon
-- Parameters optimized for that specific horizon
-- Validation metrics for the chosen horizon
+In the `run_complete_pipeline` method, change the default test_exposures to include ALL exposures:
 
-## Implementation Plan
-
-### Phase 1: Modify Parameter Optimization Framework
-
-1. **Update `ParameterOptimizer` class**:
 ```python
-class ParameterOptimizer:
-    def optimize_for_horizon(
-        self,
-        exposures: List[str],
-        target_horizon: int,  # e.g., 21 days
-        start_date: datetime,
-        end_date: datetime,
-        validation_method: str = "walk_forward"
-    ) -> Dict[str, OptimalParams]:
-        """
-        Optimize parameters for all exposures for a specific forecast horizon.
-        
-        Args:
-            exposures: List of exposure IDs to optimize
-            target_horizon: Forecast horizon in days (must be same for all)
-            start_date: Start of historical data
-            end_date: End of historical data
-            validation_method: Method for validation
+def run_complete_pipeline(self, 
+                        start_date: datetime = datetime(2020, 1, 1),
+                        end_date: datetime = datetime(2024, 12, 31),
+                        test_exposures: list = None):
+    """Run the complete parameter optimization pipeline."""
+    
+    # Use ALL exposures from the universe
+    if test_exposures is None:
+        # Get all exposure IDs from the universe
+        test_exposures = list(self.universe.exposures.keys())
+        logger.info(f"Running analysis for ALL {len(test_exposures)} exposures")
+        logger.info(f"Exposures: {test_exposures}")
+```
+
+### 2. Add Error Handling for Missing Data
+
+Some alternative exposures might have limited data. Add better error handling:
+
+```python
+def _run_return_decomposition(self, exposures, start_date, end_date):
+    """Run return decomposition for all exposures."""
+    results = {}
+    failed_exposures = []
+    
+    for exp_id in exposures:
+        try:
+            # Try to decompose each exposure individually
+            limited_universe = {exp_id: self.universe.exposures[exp_id]}
             
-        Returns:
-            Dictionary of exposure_id -> optimal parameters for the horizon
-        """
+            decomposition = self.decomposer.decompose_universe_returns(
+                limited_universe,
+                start_date,
+                end_date,
+                frequency="monthly"
+            )
+            
+            if exp_id in decomposition and 'summary' in decomposition[exp_id]:
+                summary = decomposition[exp_id]['summary']
+                results[exp_id] = {
+                    'total_return': float(summary.get('total_return', 0)),
+                    'inflation': float(summary.get('inflation', 0)),
+                    'real_rf_rate': float(summary.get('real_rf_rate', 0)),
+                    'risk_premium': float(summary.get('spread', 0)),
+                    'observations': int(summary.get('observations', 0))
+                }
+                
+                # Save time series data
+                if 'decomposition' in decomposition[exp_id]:
+                    df = decomposition[exp_id]['decomposition']
+                    df.to_csv(self.output_dir / f'decomposition_{exp_id}.csv')
+            else:
+                failed_exposures.append(exp_id)
+                logger.warning(f"No decomposition data for {exp_id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to decompose {exp_id}: {e}")
+            failed_exposures.append(exp_id)
+    
+    if failed_exposures:
+        logger.warning(f"Failed to decompose {len(failed_exposures)} exposures: {failed_exposures}")
+    
+    return results
 ```
 
-2. **Update validation to use horizon-specific metrics**:
+### 3. Check Data Availability
+
+**Create Helper Script**: `examples/check_exposure_data_availability.py`
+
 ```python
-def validate_volatility_forecast(
-    self,
-    returns: pd.Series,
-    params: Dict,
-    horizon: int
-) -> Dict[str, float]:
-    """Validate volatility forecast for specific horizon."""
-    # Predict volatility h-days ahead
-    # Compare with realized volatility over next h days
-    # Return MSE, MAE, QLIKE for h-day forecasts
-```
+"""Check which exposures have data available."""
 
-### Phase 2: Create Horizon-Specific Configuration
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-1. **New configuration structure** (`config/optimal_parameters_v2.yaml`):
-```yaml
-# Global settings - applies to entire portfolio
-global_settings:
-  forecast_horizon: 21  # All parameters optimized for 21-day ahead forecasts
-  rebalance_frequency: "monthly"
-  optimization_date: "2025-07-11"
-  validation_period: ["2020-01-01", "2025-07-11"]
+from datetime import datetime
+from data.exposure_universe import ExposureUniverse
+from data.market_data import MarketDataFetcher
 
-# Horizon-specific parameters for each exposure
-horizon_21_parameters:
-  volatility:
-    us_large_equity:
-      method: "ewma"
-      lambda: 0.94  # Optimized for 21-day forecasts
-      min_periods: 30
-      lookback_days: 252
-      validation_score: 0.023  # MSE for 21-day forecasts
-      
-    us_small_equity:
-      method: "ewma"
-      lambda: 0.92  # Different lambda for small-cap
-      min_periods: 30
-      lookback_days: 252
-      validation_score: 0.031
-      
-  correlation:
-    method: "ewma"
-    lambda: 0.96  # Single lambda for all correlations
-    min_periods: 60
-    lookback_days: 504
-    validation_score: 0.15  # Frobenius norm
-
-# Alternative horizons (for future use)
-alternative_horizons:
-  horizon_5:  # Weekly rebalancing
-    note: "Parameters optimized for 5-day forecasts"
-  horizon_63:  # Quarterly rebalancing
-    note: "Parameters optimized for 63-day forecasts"
-```
-
-### Phase 3: Update Risk Estimation Integration
-
-1. **Modify `ExposureRiskEstimator`**:
-```python
-class ExposureRiskEstimator:
-    def __init__(
-        self,
-        exposure_universe: ExposureUniverse,
-        forecast_horizon: int,  # Set at initialization
-        parameter_config_path: str = "config/optimal_parameters_v2.yaml"
-    ):
-        """Initialize with fixed forecast horizon."""
-        self.forecast_horizon = forecast_horizon
-        self.parameters = self._load_horizon_specific_parameters(forecast_horizon)
+def check_data_availability():
+    """Check data availability for all exposures."""
+    universe = ExposureUniverse.from_yaml('config/exposure_universe.yaml')
+    fetcher = MarketDataFetcher()
+    
+    print("Checking data availability for all exposures...")
+    print("=" * 80)
+    
+    results = {}
+    for exp_id, exposure in universe.exposures.items():
+        print(f"\n{exp_id}:")
         
-    def _load_horizon_specific_parameters(self, horizon: int) -> Dict:
-        """Load parameters optimized for this specific horizon."""
-        # Load from optimal_parameters_v2.yaml
-        # Use parameters from horizon_{horizon}_parameters section
+        # Get preferred implementation
+        impl = exposure.get_preferred_implementation()
+        if impl:
+            if impl.type == 'fund' and impl.ticker:
+                try:
+                    data = fetcher.fetch_prices(
+                        impl.ticker,
+                        start_date=datetime(2020, 1, 1),
+                        end_date=datetime(2024, 12, 31)
+                    )
+                    if data is not None and not data.empty:
+                        print(f"  ✓ {impl.ticker}: {len(data)} days of data")
+                        results[exp_id] = {'available': True, 'ticker': impl.ticker, 'days': len(data)}
+                    else:
+                        print(f"  ✗ {impl.ticker}: No data")
+                        results[exp_id] = {'available': False, 'ticker': impl.ticker}
+                except Exception as e:
+                    print(f"  ✗ {impl.ticker}: Error - {e}")
+                    results[exp_id] = {'available': False, 'ticker': impl.ticker, 'error': str(e)}
+                    
+            elif impl.type == 'etf_average' and impl.tickers:
+                available_tickers = []
+                for ticker in impl.tickers:
+                    try:
+                        data = fetcher.fetch_prices(
+                            ticker,
+                            start_date=datetime(2020, 1, 1),
+                            end_date=datetime(2024, 12, 31)
+                        )
+                        if data is not None and not data.empty:
+                            available_tickers.append(ticker)
+                    except:
+                        pass
+                
+                if available_tickers:
+                    print(f"  ✓ ETF Average: {len(available_tickers)}/{len(impl.tickers)} tickers available")
+                    print(f"    Available: {available_tickers}")
+                    results[exp_id] = {'available': True, 'tickers': available_tickers}
+                else:
+                    print(f"  ✗ ETF Average: No tickers have data")
+                    results[exp_id] = {'available': False}
+        else:
+            print(f"  ✗ No implementation defined")
+            results[exp_id] = {'available': False, 'reason': 'No implementation'}
+    
+    # Summary
+    print("\n" + "=" * 80)
+    print("SUMMARY:")
+    available = sum(1 for r in results.values() if r.get('available', False))
+    print(f"Data available for {available}/{len(results)} exposures")
+    
+    print("\nMissing data for:")
+    for exp_id, result in results.items():
+        if not result.get('available', False):
+            print(f"  - {exp_id}: {result.get('reason', result.get('error', 'No data'))}")
+    
+    return results
+
+if __name__ == "__main__":
+    check_data_availability()
 ```
 
-2. **Remove horizon parameter from estimation methods**:
-```python
-def estimate_exposure_risks(
-    self,
-    exposures: List[str],
-    estimation_date: datetime,
-    lookback_days: int = 756
-    # No forecast_horizon parameter - uses self.forecast_horizon
-) -> Dict[str, ExposureRiskEstimate]:
-    """Estimate risks using globally configured horizon."""
-```
+### 4. Alternative Data Sources
 
-## Validation Requirements
+For exposures with missing data, we might need to:
 
-1. **Consistency Checks**:
-   - Ensure all exposures use same forecast horizon
-   - Verify parameters are optimized for the stated horizon
-   - Check that risk estimates are all forward-looking to same period
+1. **Check fund implementations**: Some alternatives use mutual funds (AQMNX, QSPIX) that might not be in yfinance
+2. **Use fallback tickers**: The config has alternative tickers defined
+3. **Consider date ranges**: Some funds might have started after 2020
 
-2. **Performance Metrics**:
-   - Track prediction accuracy for the chosen horizon
-   - Compare with naive forecasts (historical volatility)
-   - Ensure improvement over non-optimized parameters
+## Expected Issues and Solutions
 
-3. **Integration Tests**:
-   - Test full pipeline from parameter optimization to risk estimation
-   - Verify portfolio optimization uses consistent horizons
-   - Check that results are reproducible
+1. **Trend Following**: Uses mutual funds (ABYIX, AHLIX, AQMNX, ASFYX) - might need to use ETF fallbacks (DBMF, KMLM)
+2. **Factor Strategies**: QMNIX, QSPIX might not be available - use composite ETF approach
+3. **Cash Rate**: Needs special handling as it's a rate series, not a price series
 
 ## Success Criteria
 
-- [ ] Parameter optimization accepts and uses target forecast horizon
-- [ ] All exposures have parameters optimized for same horizon
-- [ ] Configuration clearly shows global horizon setting
-- [ ] Risk estimator enforces consistent horizon usage
-- [ ] Validation proves parameters are optimal for chosen horizon
-- [ ] Full integration test passes with consistent 21-day forecasts
+- [x] Run analysis with all 16 exposures
+- [x] Identify which exposures have missing data (all 16/16 available)
+- [x] Provide fallback solutions for missing data (fixed fund_average support)
+- [x] Generate complete results including alternatives
+- [x] Document any data limitations (trend_following volatility fix documented)
 
-## Files to Create/Modify
+## Completion Summary
 
-1. **Modify**:
-   - `src/optimization/parameter_optimization.py` - Add horizon-aware optimization
-   - `src/optimization/exposure_risk_estimator.py` - Enforce consistent horizon
-   - `src/optimization/ewma.py` - Add horizon-specific validation
+**Completed 2025-07-13:**
+- ✅ Created `examples/check_exposure_data_availability.py` - verified all 16 exposures have data
+- ✅ Updated `examples/parameter_optimization_complete_demo.py` to include ALL exposures
+- ✅ Fixed `src/optimization/exposure_risk_estimator.py` to support fund_average implementation type
+- ✅ Resolved trend_following NaN volatility issue (now shows 7.06%)
+- ✅ Generated complete results with optimal parameters: λ=0.96, 21-day horizon
+- ✅ Output includes 15x15 correlation matrix and complete exposure analysis
+- ✅ Committed all changes to git with comprehensive documentation
 
-2. **Create**:
-   - `config/optimal_parameters_v2.yaml` - New configuration format
-   - `src/optimization/horizon_validator.py` - Consistency checks
-   - `tests/test_horizon_consistency.py` - Integration tests
+## Output
 
-3. **Update**:
-   - `examples/parameter_optimization_demo.py` - Show horizon selection
-   - `notebooks/parameter_optimization_analysis.ipynb` - Analyze horizon impact
+The updated analysis should show:
+- All 16 exposures in the summary
+- Volatility/correlation estimates for alternatives
+- Risk premiums for trend following and factor strategies
+- Complete correlation matrix including alternatives
 
-## Notes for Implementation
-
-- Start with 21-day horizon as the default (monthly rebalancing is common)
-- Keep the old parameter files for comparison
-- Make the change backward compatible if possible
-- Consider computational efficiency - don't re-optimize if horizon hasn't changed
-- Document why consistent horizons are critical for portfolio optimization
-
-This ensures mathematical consistency in portfolio optimization by guaranteeing all risk estimates look forward to the same time period.
+This will give us the full picture of the exposure universe including the critical alternative strategies.
