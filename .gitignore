@@ -186,8 +186,11 @@ optimization_run.log
 
 # Config files with sensitive data
 config/optimal_parameters.yaml
-config/optimal_parameters_*.yaml
 config/decomposition_config.yaml
+
+# Keep production optimal parameters in git:
+# !config/optimal_parameters_portfolio_level.yaml
+# !config/optimal_parameters_v2.yaml
 
 # Notebooks with execution output
 *_executed.ipynb
