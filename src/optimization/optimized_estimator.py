@@ -15,7 +15,7 @@ import numpy as np
 
 from .component_optimizers import UnifiedOptimalParameters, ComponentOptimalParameters
 from .risk_premium_estimator import RiskPremiumEstimator
-from ..data.exposure_universe import ExposureUniverse
+from data.exposure_universe import ExposureUniverse
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,8 @@ class OptimizedRiskEstimator:
     def _create_default_estimator(self) -> RiskPremiumEstimator:
         """Create default risk estimator."""
         try:
-            from ..data.exposure_universe import ExposureUniverse
-            from ..data.return_decomposition import ReturnDecomposer
+            from data.exposure_universe import ExposureUniverse
+            from data.return_decomposition import ReturnDecomposer
             
             # Try multiple paths for the config file
             config_paths = [

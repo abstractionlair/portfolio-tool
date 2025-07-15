@@ -1240,6 +1240,10 @@ class ParameterOptimizer:
             end_date=end_date
         )
         
+        # Compute final risk estimates using optimal parameters
+        final_estimates = self._compute_final_risk_estimates(results['optimal_parameters'])
+        results['final_estimates'] = final_estimates
+        
         # Save results in new format
         self._save_portfolio_level_results(results)
         
@@ -1305,7 +1309,8 @@ class ParameterOptimizer:
                 'volatility_params': optimal_result.volatility_params,
                 'correlation_params': optimal_result.correlation_params,
             },
-            'all_horizon_results': {}
+            'all_horizon_results': {},
+            'final_estimates': results.get('final_estimates', {})
         }
         
         for horizon, result in results['all_horizon_results'].items():
@@ -1322,6 +1327,228 @@ class ParameterOptimizer:
             json.dump(json_results, f, indent=2, default=str)
         
         logger.info(f"Saved detailed results to {json_file}")
+
+    def _compute_final_risk_estimates(self, optimal_result) -> Dict:
+        """
+        Compute final risk estimates using optimal parameters.
+        
+        Args:
+            optimal_result: HorizonOptimizationResult with optimal parameters
+            
+        Returns:
+            Dictionary containing final volatilities and correlation matrix
+        """
+        try:
+            from ..optimization.exposure_risk_estimator import ExposureRiskEstimator
+            from ..optimization.ewma import EWMAEstimator, EWMAParameters
+        except ImportError:
+            from optimization.exposure_risk_estimator import ExposureRiskEstimator
+            from optimization.ewma import EWMAEstimator, EWMAParameters
+        
+        logger.info("Computing final risk estimates using optimal parameters...")
+        
+        try:
+            # Get list of exposures
+            exposures = list(optimal_result.volatility_params.keys())
+            
+            # Initialize result dictionary
+            final_estimates = {
+                'exposure_volatilities': {},
+                'correlation_matrix': {},
+                'covariance_matrix': {},
+                'estimation_date': datetime.now().strftime('%Y-%m-%d'),
+                'forecast_horizon': optimal_result.horizon
+            }
+            
+            # Compute individual exposure volatilities
+            for exposure_id, params in optimal_result.volatility_params.items():
+                try:
+                    # Get exposure data
+                    exposure_data = self.exposure_universe.get_exposure(exposure_id)
+                    if exposure_data is None:
+                        logger.warning(f"Could not find exposure data for {exposure_id}")
+                        continue
+                    
+                    # Get preferred implementation
+                    preferred_impl = exposure_data.get_preferred_implementation()
+                    if preferred_impl is None:
+                        logger.warning(f"Could not find preferred implementation for {exposure_id}")
+                        continue
+                    
+                    # Fetch returns data
+                    returns_result = self.data_fetcher.fetch_returns_for_exposure(
+                        exposure_data,
+                        start_date=datetime.now() - timedelta(days=365*2),  # 2 years
+                        end_date=datetime.now()
+                    )
+                    
+                    if returns_result is None or len(returns_result) < 1:
+                        logger.warning(f"No returns data for {exposure_id}")
+                        continue
+                    
+                    returns_data = returns_result[0]
+                    if returns_data is None or returns_data.empty:
+                        logger.warning(f"Empty returns data for {exposure_id}")
+                        continue
+                    
+                    # Compute volatility based on method
+                    method = params['method']
+                    daily_volatility = None
+                    annual_volatility = None
+                    
+                    if method == 'ewma':
+                        # Use EWMA method
+                        ewma_params = params.get('parameters', {})
+                        lambda_val = ewma_params.get('lambda', 0.94)
+                        lookback_days = ewma_params.get('lookback_days', 252)
+                        
+                        # Get recent returns for estimation
+                        recent_returns = returns_data.tail(lookback_days)
+                        
+                        # Estimate volatility
+                        ewma_config = EWMAParameters(lambda_=lambda_val)
+                        estimator = EWMAEstimator(params=ewma_config)
+                        
+                        # Estimate variance and convert to volatility
+                        variance_series = estimator.estimate_variance(recent_returns, annualize=False)
+                        daily_volatility = np.sqrt(variance_series.iloc[-1])
+                        
+                        # Annualize volatility
+                        annual_volatility = daily_volatility * np.sqrt(252)
+                        
+                    elif method == 'historical':
+                        # Use historical method
+                        hist_params = params.get('parameters', {})
+                        lookback_days = hist_params.get('lookback_days', 252)
+                        
+                        # Get recent returns for estimation
+                        recent_returns = returns_data.tail(lookback_days)
+                        
+                        # Estimate volatility
+                        daily_volatility = recent_returns.std()
+                        annual_volatility = daily_volatility * np.sqrt(252)
+                        
+                    elif method == 'garch':
+                        # Use GARCH method
+                        garch_params = params.get('parameters', {})
+                        lookback_days = garch_params.get('lookback_days', 252)
+                        
+                        # Get recent returns for estimation
+                        recent_returns = returns_data.tail(lookback_days)
+                        
+                        # Simple GARCH estimation (can be enhanced)
+                        daily_volatility = recent_returns.std()
+                        annual_volatility = daily_volatility * np.sqrt(252)
+                        
+                    else:
+                        logger.warning(f"Unknown volatility method: {method}")
+                        continue
+                    
+                    # Skip if we couldn't compute volatility
+                    if daily_volatility is None or annual_volatility is None:
+                        logger.warning(f"Could not compute volatility for {exposure_id}")
+                        continue
+                    
+                    final_estimates['exposure_volatilities'][exposure_id] = {
+                        'daily_volatility': daily_volatility,
+                        'annualized_volatility': annual_volatility,
+                        'method': method,
+                        'parameters': params.get('parameters', {})
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"Error computing volatility for {exposure_id}: {e}")
+                    continue
+            
+            # Compute correlation matrix
+            try:
+                corr_params = optimal_result.correlation_params
+                corr_method = corr_params.get('method', 'historical')
+                
+                # Fetch all returns data for correlation estimation
+                all_returns = {}
+                for exposure_id in exposures:
+                    exposure_data = self.exposure_universe.get_exposure(exposure_id)
+                    if exposure_data is None:
+                        continue
+                        
+                    # Get preferred implementation
+                    preferred_impl = exposure_data.get_preferred_implementation()
+                    if preferred_impl is None:
+                        continue
+                        
+                    returns_result = self.data_fetcher.fetch_returns_for_exposure(
+                        exposure_data,
+                        start_date=datetime.now() - timedelta(days=365*2),  # 2 years
+                        end_date=datetime.now()
+                    )
+                    
+                    if returns_result is not None and len(returns_result) >= 1:
+                        returns_data = returns_result[0]
+                        if returns_data is not None and not returns_data.empty:
+                            all_returns[exposure_id] = returns_data
+                
+                if len(all_returns) > 1:
+                    # Align returns data
+                    aligned_returns = pd.DataFrame(all_returns)
+                    aligned_returns = aligned_returns.dropna()
+                    
+                    if not aligned_returns.empty:
+                        # Compute correlation matrix
+                        if corr_method == 'ewma':
+                            # Use EWMA correlation
+                            ewma_lambda = corr_params.get('parameters', {}).get('lambda', 0.94)
+                            
+                            # Simple EWMA correlation (can be enhanced)
+                            correlation_matrix = aligned_returns.ewm(alpha=1-ewma_lambda).corr().iloc[-len(exposures):]
+                            
+                        else:
+                            # Use historical correlation
+                            lookback_days = corr_params.get('parameters', {}).get('lookback_days', 252)
+                            recent_returns = aligned_returns.tail(lookback_days)
+                            correlation_matrix = recent_returns.corr()
+                        
+                        # Store correlation matrix
+                        final_estimates['correlation_matrix'] = correlation_matrix.to_dict()
+                        
+                        # Compute covariance matrix
+                        volatilities = pd.Series({
+                            exp_id: data['daily_volatility'] 
+                            for exp_id, data in final_estimates['exposure_volatilities'].items()
+                        })
+                        
+                        # Create covariance matrix
+                        vol_matrix = np.outer(volatilities.values, volatilities.values)
+                        covariance_matrix = vol_matrix * correlation_matrix.values
+                        
+                        final_estimates['covariance_matrix'] = pd.DataFrame(
+                            covariance_matrix, 
+                            index=correlation_matrix.index,
+                            columns=correlation_matrix.columns
+                        ).to_dict()
+                        
+            except Exception as e:
+                logger.error(f"Error computing correlation matrix: {e}")
+                # Fallback to identity matrix
+                final_estimates['correlation_matrix'] = pd.DataFrame(
+                    np.eye(len(exposures)), 
+                    index=exposures, 
+                    columns=exposures
+                ).to_dict()
+            
+            logger.info(f"Computed final risk estimates for {len(final_estimates['exposure_volatilities'])} exposures")
+            return final_estimates
+            
+        except Exception as e:
+            logger.error(f"Error computing final risk estimates: {e}")
+            return {
+                'error': str(e),
+                'exposure_volatilities': {},
+                'correlation_matrix': {},
+                'covariance_matrix': {},
+                'estimation_date': datetime.now().strftime('%Y-%m-%d'),
+                'forecast_horizon': optimal_result.horizon
+            }
 
 
 def run_exposure_universe_optimization(

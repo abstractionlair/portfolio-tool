@@ -1,10 +1,10 @@
-horizon_63_results:
+horizon_189_results:
   correlation_parameters:
-    horizon: 63
+    horizon: 189
     parameters:
-      lookback_days: 252
+      lookback_days: 504
       method: historical
-      min_periods: 60
+      min_periods: 120
     validation_score: !!python/object/apply:numpy._core.multiarray.scalar
     - &id001 !!python/object/apply:numpy.dtype
       args:
@@ -21,169 +21,40 @@ horizon_63_results:
       - -1
       - 0
     - !!binary |
-      qmE480zvDkA=
+      LR0a/W0tDkA=
   goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
   - *id001
   - !!binary |
-    1AK5uMw2yr4=
+    fEhSEsQNo74=
   portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
   - *id001
   - !!binary |
-    r3LhDIH2XD8=
+    cj2SP0mxSD8=
   volatility_parameters:
     broad_ust:
-      horizon: 63
+      horizon: 189
       method: ewma
       parameters:
-        lambda: 0.99
+        lambda: 0.9
         lookback_days: 756
         min_periods: 30
       validation_score: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        9i3HNl/WxD4=
+        j3q4mSr6aD4=
     cash_rate:
-      horizon: 63
+      horizon: 189
       method: ewma
       parameters:
-        lambda: 0.94
-        lookback_days: 252
+        lambda: 0.97
+        lookback_days: 504
         min_periods: 30
       validation_score: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        p/y7KTa1xj0=
+        PxBk+Brw4z0=
     commodities:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.9
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        dWky4DM87z4=
-    dynamic_global_bonds:
-      horizon: 63
-      method: historical
-      parameters:
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        wieomwHRsD4=
-    emerging_equity:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.97
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        oFzzTm8h9j4=
-    factor_style_equity:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.97
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        DBDDZXiP4D4=
-    factor_style_other:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.99
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        sIGAYzUJ7z4=
-    gold:
-      horizon: 63
-      method: historical
-      parameters:
-        lookback_days: 504
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        zUWgDfw45T4=
-    intl_developed_large_equity:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.9
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        Av31PwBl6z4=
-    intl_developed_small_equity:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.9
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        LaP8/YqD7z4=
-    real_estate:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.9
-        lookback_days: 252
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        3n0ePfoj9j4=
-    short_ust:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.99
-        lookback_days: 252
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        vs6VDwAErj4=
-    tips:
-      horizon: 63
-      method: ewma
-      parameters:
-        lambda: 0.9
-        lookback_days: 756
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        SMaKHfhKwj4=
-    trend_following:
-      horizon: 63
-      method: historical
-      parameters:
-        lookback_days: 252
-        min_periods: 30
-      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id001
-      - !!binary |
-        laVDbYhD4j4=
-    us_large_equity:
-      horizon: 63
+      horizon: 189
       method: ewma
       parameters:
         lambda: 0.94
@@ -192,9 +63,63 @@ horizon_63_results:
       validation_score: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        wA2meMHX+j4=
-    us_small_equity:
-      horizon: 63
+        Dm7ykWNQ4T4=
+    dynamic_global_bonds:
+      horizon: 189
+      method: historical
+      parameters:
+        lookback_days: 504
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        DwYirZGfUj4=
+    emerging_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        oIQb/NLc0j4=
+    factor_style_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.97
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        9G3/Jm7owz4=
+    factor_style_other:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.97
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        rij+SePOwD4=
+    global_macro:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.94
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Mlx1pAyYoz4=
+    gold:
+      horizon: 189
       method: ewma
       parameters:
         lambda: 0.99
@@ -203,41 +128,189 @@ horizon_63_results:
       validation_score: !!python/object/apply:numpy._core.multiarray.scalar
       - *id001
       - !!binary |
-        WGnay3wWBD8=
+        sLx+e+ZDvj4=
+    intl_developed_large_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        Sec40OsUyj4=
+    intl_developed_small_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 252
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        rq85TsFezD4=
+    real_estate:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        YQKtCis/tj4=
+    short_ust:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.97
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        KmlTOXP3gD4=
+    tips:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.94
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        +WYsTolWhj4=
+    trend_following:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.97
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        27Yv3HFrhj4=
+    us_large_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        CppqQeXr4D4=
+    us_small_equity:
+      horizon: 189
+      method: ewma
+      parameters:
+        lambda: 0.9
+        lookback_days: 756
+        min_periods: 30
+      validation_score: !!python/object/apply:numpy._core.multiarray.scalar
+      - *id001
+      - !!binary |
+        7hhGaE6l0j4=
 horizon_comparison:
+  10_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      3ylx0OQHCr8=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      EHiJ4YvcfD8=
+  126_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      ElPO8v8rvL4=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      EvS5hRo7VT8=
+  189_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      fEhSEsQNo74=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      cj2SP0mxSD8=
   21_day:
     goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      6N14qv4t8L4=
+      z/oepWXC774=
     portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      HfrI5e4WcD8=
+      lRBN8SPhbz8=
+  252_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      nDub5dCIwb4=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      nthuAgawVz8=
+  365_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      N9qzkc5wwL4=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      fk9P8NfvVj8=
+  42_day:
+    goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      d81Zz+qo2r4=
+    portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      ilRuVDynZD8=
   5_day:
     goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      k9/mf9f2JL8=
+      De3Rdb1ZJL8=
     portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      mzuknZ/miT8=
+      2m+aztqEiT8=
   63_day:
     goodness_score: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      1AK5uMw2yr4=
+      PULau8LYyb4=
     portfolio_rmse: !!python/object/apply:numpy._core.multiarray.scalar
     - *id001
     - !!binary |
-      r3LhDIH2XD8=
-optimal_horizon: 63
+      sqVY617CXD8=
+optimal_horizon: 189
 optimization_metadata:
   candidate_horizons:
   - 5
+  - 10
   - 21
+  - 42
   - 63
+  - 126
+  - 189
+  - 252
+  - 365
   method: portfolio_level_two_stage
-  optimization_date: '2025-07-12'
+  optimization_date: '2025-07-14'
   test_portfolios: 3

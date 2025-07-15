@@ -13,10 +13,16 @@ from .results_analysis import (
     ComprehensiveInsights
 )
 
+from .portfolio_level_analyzer import PortfolioLevelAnalyzer, OptimizationResults
+from .visualization import PortfolioOptimizationVisualizer
+
 __all__ = [
     'ParameterSearchResultsAnalyzer',
     'OptimalParameterResult',
     'ForecastabilityAnalysis', 
     'MethodPerformanceAnalysis',
-    'ComprehensiveInsights'
+    'ComprehensiveInsights',
+    'PortfolioLevelAnalyzer',
+    'OptimizationResults',
+    'PortfolioOptimizationVisualizer'
 ]

@@ -1,6 +1,6 @@
 # Task: Web Interface Development - Phase 1 (Foundation)
 
-**Status**: NOT STARTED  
+**Status**: READY TO START  
 **Priority**: CRITICAL  
 **Estimated Time**: 3-4 days  
 **Approach**: Build thin API layer over existing functionality
@@ -498,7 +498,7 @@ def test_optimization():
 - [ ] Pydantic models for type safety
 - [ ] Service layer for business logic
 - [ ] Integration with existing optimization engine
-- [ ] Optimal parameters (63-day horizon) used by default
+- [ ] Optimal parameters (189-day horizon) used by default
 - [ ] API documentation auto-generated
 - [ ] Basic tests passing
 - [ ] Application runs with `python scripts/run_web.py`

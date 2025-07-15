@@ -32,11 +32,18 @@ def main():
     
     optimizer = ParameterOptimizer(universe)
     
-    # Run two-level optimization
-    print("\nTesting forecast horizons: [5, 21, 63] days")
+    # Run two-level optimization with comprehensive horizon testing
+    candidate_horizons = [5, 10, 21, 42, 63, 126, 189, 252, 365]
+    print(f"\nTesting forecast horizons: {candidate_horizons} days")
     print("- 5 days: Weekly rebalancing")
+    print("- 10 days: Bi-weekly rebalancing")
     print("- 21 days: Monthly rebalancing") 
+    print("- 42 days: Bi-monthly rebalancing")
     print("- 63 days: Quarterly rebalancing")
+    print("- 126 days: Semi-annual rebalancing")
+    print("- 189 days: Tri-annual rebalancing")
+    print("- 252 days: Annual rebalancing")
+    print("- 365 days: Full year rebalancing")
     print()
     print("Optimizing for portfolio-level prediction accuracy...")
     print("This will test multiple portfolio compositions and select parameters")
@@ -45,7 +52,7 @@ def main():
     
     try:
         results = optimizer.optimize_portfolio_level(
-            candidate_horizons=[5, 21, 63],
+            candidate_horizons=candidate_horizons,
             start_date=datetime(2020, 1, 1),  # Shorter period for demo
             end_date=datetime(2024, 12, 31)
         )

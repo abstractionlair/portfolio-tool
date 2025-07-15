@@ -12,8 +12,8 @@ from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 
-from ..data.interfaces import LogicalDataType, RawDataType
-from ..data.providers import TransformedDataProvider, RawDataProviderCoordinator
+from data.interfaces import LogicalDataType, RawDataType
+from data.providers import TransformedDataProvider, RawDataProviderCoordinator
 from .engine import OptimizationEngine, OptimizationConstraints, OptimizationResult, ObjectiveType
 from .estimators import ReturnEstimator
 

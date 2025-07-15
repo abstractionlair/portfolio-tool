@@ -41,7 +41,8 @@ class VolatilityOptimizer(ComponentOptimizer):
                           exposure_ids: List[str],
                           start_date: datetime,
                           end_date: datetime,
-                          n_splits: int = 5) -> Dict[str, ComponentOptimalParameters]:
+                          n_splits: int = 5,
+                          target_horizon: int = 21) -> Dict[str, ComponentOptimalParameters]:
         """Optimize volatility parameters for each exposure.
         
         Args:
@@ -49,6 +50,7 @@ class VolatilityOptimizer(ComponentOptimizer):
             start_date: Start of optimization period
             end_date: End of optimization period
             n_splits: Number of time series cross-validation splits
+            target_horizon: Target forecast horizon in days
             
         Returns:
             Dictionary mapping exposure_id to optimal parameters
@@ -62,7 +64,7 @@ class VolatilityOptimizer(ComponentOptimizer):
             
             try:
                 optimal_params = self._optimize_single_exposure(
-                    exposure_id, start_date, end_date, n_splits
+                    exposure_id, start_date, end_date, n_splits, target_horizon
                 )
                 results[exposure_id] = optimal_params
                 
@@ -77,7 +79,8 @@ class VolatilityOptimizer(ComponentOptimizer):
                                 exposure_id: str,
                                 start_date: datetime,
                                 end_date: datetime,
-                                n_splits: int) -> ComponentOptimalParameters:
+                                n_splits: int,
+                                target_horizon: int = 21) -> ComponentOptimalParameters:
         """Optimize parameters for a single exposure."""
         
         # Get parameter grid
@@ -126,7 +129,8 @@ class VolatilityOptimizer(ComponentOptimizer):
                         exposure_id=exposure_id,
                         parameters=params,
                         train_data=decomposition,
-                        test_data=test_decomposition
+                        test_data=test_decomposition,
+                        target_horizon=target_horizon
                     )
                     
                     if split_scores.get('mse') is not None and not np.isnan(split_scores['mse']):
@@ -167,7 +171,8 @@ class VolatilityOptimizer(ComponentOptimizer):
                         exposure_id: str,
                         parameters: Dict[str, Any],
                         train_data: Any,
-                        test_data: Any) -> Dict[str, float]:
+                        test_data: Any,
+                        target_horizon: int = 21) -> Dict[str, float]:
         """Score volatility forecasting accuracy.
         
         Args:
@@ -175,6 +180,7 @@ class VolatilityOptimizer(ComponentOptimizer):
             parameters: Parameter dictionary to score
             train_data: Training dataset (ExposureDecomposition)
             test_data: Test dataset (ExposureDecomposition)
+            target_horizon: Target forecast horizon in days
             
         Returns:
             Dictionary of score_name -> score_value
@@ -204,7 +210,7 @@ class VolatilityOptimizer(ComponentOptimizer):
             if test_returns.empty:
                 return {'mse': np.nan, 'qlike': np.nan, 'realized_correlation': np.nan}
             
-            realized_vol = self._calculate_realized_volatility(test_returns, horizon=21)
+            realized_vol = self._calculate_realized_volatility(test_returns, horizon=target_horizon)
             
             if np.isnan(realized_vol):
                 return {'mse': np.nan, 'qlike': np.nan, 'realized_correlation': np.nan}
