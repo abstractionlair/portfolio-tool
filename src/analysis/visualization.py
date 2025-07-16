@@ -1072,3 +1072,502 @@ class PortfolioOptimizationVisualizer:
                 print(f"Error saving {filename}: {e}")
                 
         print(f"All plots saved to: {output_path}")
+    
+    def plot_return_prediction_errors_by_exposure(self, analyzer, 
+                                                 interactive: bool = False) -> Optional[go.Figure]:
+        """
+        Plot return prediction errors by exposure
+        
+        Args:
+            analyzer: PortfolioLevelAnalyzer instance
+            interactive: Whether to create interactive plotly chart
+        """
+        
+        errors_df = analyzer.get_return_prediction_errors_by_exposure()
+        
+        if errors_df.empty:
+            print("No return prediction data available")
+            return None
+            
+        if interactive:
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('Directional Accuracy by Exposure', 'Error Rate by Method',
+                               'Method Distribution', 'Parameter Analysis'),
+                specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                       [{"secondary_y": False}, {"secondary_y": False}]]
+            )
+            
+            # Directional accuracy by exposure
+            fig.add_trace(
+                go.Bar(x=errors_df['exposure'], y=errors_df['directional_accuracy'],
+                       name='Directional Accuracy', marker_color='lightblue'),
+                row=1, col=1
+            )
+            
+            # Error rate by method
+            method_errors = errors_df.groupby('method')['error_rate'].mean().reset_index()
+            fig.add_trace(
+                go.Bar(x=method_errors['method'], y=method_errors['error_rate'],
+                       name='Average Error Rate', marker_color='lightcoral'),
+                row=1, col=2
+            )
+            
+            # Method distribution
+            method_counts = errors_df['method'].value_counts()
+            fig.add_trace(
+                go.Pie(labels=method_counts.index, values=method_counts.values,
+                       name='Method Distribution'),
+                row=2, col=1
+            )
+            
+            # Parameter analysis - show horizon distribution
+            horizon_dist = errors_df['horizon'].value_counts()
+            fig.add_trace(
+                go.Bar(x=horizon_dist.index, y=horizon_dist.values,
+                       name='Horizon Distribution', marker_color='lightgreen'),
+                row=2, col=2
+            )
+            
+            fig.update_layout(
+                title_text="Return Prediction Error Analysis by Exposure",
+                height=800,
+                showlegend=False
+            )
+            
+            return fig
+            
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Directional accuracy by exposure
+            axes[0, 0].bar(range(len(errors_df)), errors_df['directional_accuracy'], 
+                          color=self.colors[0], alpha=0.7)
+            axes[0, 0].set_xlabel('Exposure Index')
+            axes[0, 0].set_ylabel('Directional Accuracy')
+            axes[0, 0].set_title('Directional Accuracy by Exposure')
+            axes[0, 0].set_xticks(range(len(errors_df)))
+            axes[0, 0].set_xticklabels(errors_df['exposure'], rotation=45, ha='right')
+            axes[0, 0].axhline(y=0.5, color='red', linestyle='--', alpha=0.7, label='Random (50%)')
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Error rate by method
+            method_errors = errors_df.groupby('method')['error_rate'].mean()
+            axes[0, 1].bar(method_errors.index, method_errors.values, 
+                          color=self.colors[1], alpha=0.7)
+            axes[0, 1].set_xlabel('Method')
+            axes[0, 1].set_ylabel('Average Error Rate')
+            axes[0, 1].set_title('Error Rate by Method')
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Method distribution
+            method_counts = errors_df['method'].value_counts()
+            axes[1, 0].pie(method_counts.values, labels=method_counts.index, autopct='%1.1f%%',
+                          colors=self.colors[:len(method_counts)])
+            axes[1, 0].set_title('Method Distribution')
+            
+            # Accuracy vs Error Rate scatter
+            axes[1, 1].scatter(errors_df['directional_accuracy'], errors_df['error_rate'],
+                              c=[self.colors[i % len(self.colors)] for i in range(len(errors_df))],
+                              alpha=0.7, s=100)
+            axes[1, 1].set_xlabel('Directional Accuracy')
+            axes[1, 1].set_ylabel('Error Rate')
+            axes[1, 1].set_title('Accuracy vs Error Rate')
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            return fig
+    
+    def plot_return_prediction_errors_by_horizon(self, analyzer, 
+                                               interactive: bool = False) -> Optional[go.Figure]:
+        """
+        Plot return prediction errors by horizon
+        
+        Args:
+            analyzer: PortfolioLevelAnalyzer instance
+            interactive: Whether to create interactive plotly chart
+        """
+        
+        horizon_df = analyzer.get_return_prediction_errors_by_horizon()
+        
+        if horizon_df.empty:
+            print("No horizon return prediction data available")
+            return None
+            
+        if interactive:
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('Directional Accuracy by Horizon', 'Error Rate by Horizon',
+                               'Method Diversity by Horizon', 'Accuracy Range by Horizon'),
+                specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                       [{"secondary_y": False}, {"secondary_y": False}]]
+            )
+            
+            # Directional accuracy by horizon
+            fig.add_trace(
+                go.Scatter(x=horizon_df['horizon'], y=horizon_df['avg_directional_accuracy'],
+                          mode='lines+markers', name='Avg Directional Accuracy'),
+                row=1, col=1
+            )
+            
+            # Error rate by horizon
+            fig.add_trace(
+                go.Scatter(x=horizon_df['horizon'], y=horizon_df['avg_error_rate'],
+                          mode='lines+markers', name='Avg Error Rate', line=dict(color='red')),
+                row=1, col=2
+            )
+            
+            # Method diversity by horizon
+            fig.add_trace(
+                go.Bar(x=horizon_df['horizon'], y=horizon_df['method_diversity'],
+                       name='Method Diversity', marker_color='lightgreen'),
+                row=2, col=1
+            )
+            
+            # Accuracy range (min/max) by horizon
+            fig.add_trace(
+                go.Scatter(x=horizon_df['horizon'], y=horizon_df['max_directional_accuracy'],
+                          mode='lines+markers', name='Max Accuracy', line=dict(color='green')),
+                row=2, col=2
+            )
+            fig.add_trace(
+                go.Scatter(x=horizon_df['horizon'], y=horizon_df['min_directional_accuracy'],
+                          mode='lines+markers', name='Min Accuracy', line=dict(color='red')),
+                row=2, col=2
+            )
+            
+            fig.update_layout(
+                title_text="Return Prediction Error Analysis by Horizon",
+                height=800,
+                showlegend=True
+            )
+            
+            return fig
+            
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Directional accuracy by horizon
+            axes[0, 0].plot(horizon_df['horizon'], horizon_df['avg_directional_accuracy'], 
+                           'o-', color=self.colors[0], linewidth=2, markersize=8)
+            axes[0, 0].fill_between(horizon_df['horizon'], 
+                                   horizon_df['avg_directional_accuracy'] - horizon_df['std_directional_accuracy'],
+                                   horizon_df['avg_directional_accuracy'] + horizon_df['std_directional_accuracy'],
+                                   alpha=0.3, color=self.colors[0])
+            axes[0, 0].set_xlabel('Horizon (days)')
+            axes[0, 0].set_ylabel('Directional Accuracy')
+            axes[0, 0].set_title('Directional Accuracy by Horizon')
+            axes[0, 0].axhline(y=0.5, color='red', linestyle='--', alpha=0.7, label='Random (50%)')
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Error rate by horizon
+            axes[0, 1].plot(horizon_df['horizon'], horizon_df['avg_error_rate'], 
+                           'o-', color=self.colors[1], linewidth=2, markersize=8)
+            axes[0, 1].set_xlabel('Horizon (days)')
+            axes[0, 1].set_ylabel('Error Rate')
+            axes[0, 1].set_title('Error Rate by Horizon')
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Method diversity by horizon
+            axes[1, 0].bar(horizon_df['horizon'], horizon_df['method_diversity'], 
+                          color=self.colors[2], alpha=0.7)
+            axes[1, 0].set_xlabel('Horizon (days)')
+            axes[1, 0].set_ylabel('Number of Methods Used')
+            axes[1, 0].set_title('Method Diversity by Horizon')
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Accuracy range by horizon
+            axes[1, 1].fill_between(horizon_df['horizon'], 
+                                   horizon_df['min_directional_accuracy'],
+                                   horizon_df['max_directional_accuracy'],
+                                   alpha=0.4, color=self.colors[3], label='Accuracy Range')
+            axes[1, 1].plot(horizon_df['horizon'], horizon_df['avg_directional_accuracy'], 
+                           'o-', color=self.colors[0], linewidth=2, markersize=6, label='Average')
+            axes[1, 1].set_xlabel('Horizon (days)')
+            axes[1, 1].set_ylabel('Directional Accuracy')
+            axes[1, 1].set_title('Accuracy Range by Horizon')
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            return fig
+    
+    def plot_return_prediction_method_analysis(self, analyzer, 
+                                             interactive: bool = False) -> Optional[go.Figure]:
+        """
+        Plot return prediction method analysis
+        
+        Args:
+            analyzer: PortfolioLevelAnalyzer instance
+            interactive: Whether to create interactive plotly chart
+        """
+        
+        method_df = analyzer.get_return_prediction_errors_by_method()
+        
+        if method_df.empty:
+            print("No method return prediction data available")
+            return None
+            
+        if interactive:
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('Average Directional Accuracy', 'Error Rate Distribution',
+                               'Method Usage Count', 'Accuracy Consistency'),
+                specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                       [{"secondary_y": False}, {"secondary_y": False}]]
+            )
+            
+            # Average directional accuracy
+            fig.add_trace(
+                go.Bar(x=method_df['method'], y=method_df['directional_accuracy_mean'],
+                       name='Avg Directional Accuracy', marker_color='lightblue'),
+                row=1, col=1
+            )
+            
+            # Error rate distribution
+            fig.add_trace(
+                go.Bar(x=method_df['method'], y=method_df['error_rate_mean'],
+                       name='Avg Error Rate', marker_color='lightcoral'),
+                row=1, col=2
+            )
+            
+            # Method usage count
+            fig.add_trace(
+                go.Bar(x=method_df['method'], y=method_df['directional_accuracy_count'],
+                       name='Usage Count', marker_color='lightgreen'),
+                row=2, col=1
+            )
+            
+            # Accuracy consistency (standard deviation)
+            fig.add_trace(
+                go.Bar(x=method_df['method'], y=method_df['directional_accuracy_std'],
+                       name='Accuracy Std Dev', marker_color='orange'),
+                row=2, col=2
+            )
+            
+            fig.update_layout(
+                title_text="Return Prediction Method Analysis",
+                height=800,
+                showlegend=False
+            )
+            
+            return fig
+            
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Average directional accuracy
+            axes[0, 0].bar(method_df['method'], method_df['directional_accuracy_mean'], 
+                          color=self.colors[0], alpha=0.7)
+            axes[0, 0].set_xlabel('Method')
+            axes[0, 0].set_ylabel('Average Directional Accuracy')
+            axes[0, 0].set_title('Average Directional Accuracy by Method')
+            axes[0, 0].axhline(y=0.5, color='red', linestyle='--', alpha=0.7, label='Random (50%)')
+            axes[0, 0].legend()
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Error rate distribution
+            axes[0, 1].bar(method_df['method'], method_df['error_rate_mean'], 
+                          color=self.colors[1], alpha=0.7)
+            axes[0, 1].set_xlabel('Method')
+            axes[0, 1].set_ylabel('Average Error Rate')
+            axes[0, 1].set_title('Average Error Rate by Method')
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Method usage count
+            axes[1, 0].bar(method_df['method'], method_df['directional_accuracy_count'], 
+                          color=self.colors[2], alpha=0.7)
+            axes[1, 0].set_xlabel('Method')
+            axes[1, 0].set_ylabel('Usage Count')
+            axes[1, 0].set_title('Method Usage Count')
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Accuracy consistency (with error bars)
+            axes[1, 1].bar(method_df['method'], method_df['directional_accuracy_mean'], 
+                          yerr=method_df['directional_accuracy_std'],
+                          color=self.colors[3], alpha=0.7, capsize=5)
+            axes[1, 1].set_xlabel('Method')
+            axes[1, 1].set_ylabel('Directional Accuracy')
+            axes[1, 1].set_title('Accuracy Consistency (Mean ± Std)')
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            return fig
+    
+    def plot_return_prediction_parameter_analysis(self, analyzer, 
+                                                interactive: bool = False) -> Optional[go.Figure]:
+        """
+        Plot return prediction parameter analysis
+        
+        Args:
+            analyzer: PortfolioLevelAnalyzer instance
+            interactive: Whether to create interactive plotly chart
+        """
+        
+        param_analysis = analyzer.get_return_prediction_parameter_analysis()
+        
+        if 'note' in param_analysis:
+            print(param_analysis['note'])
+            return None
+            
+        if interactive:
+            # Create subplots for parameter analysis
+            methods = [m for m in param_analysis.keys() if param_analysis[m]['count'] > 0]
+            
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('Method Performance', 'Parameter Distribution', 
+                               'Lookback Analysis', 'Score Distribution'),
+                specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                       [{"secondary_y": False}, {"secondary_y": False}]]
+            )
+            
+            # Method performance
+            method_scores = [param_analysis[m]['avg_score'] for m in methods]
+            fig.add_trace(
+                go.Bar(x=methods, y=method_scores, name='Avg Score', marker_color='lightblue'),
+                row=1, col=1
+            )
+            
+            # Parameter distribution (focus on methods with specific parameters)
+            if 'ewma' in param_analysis and param_analysis['ewma']['count'] > 0:
+                decay_factors = [p['decay_factor'] for p in param_analysis['ewma']['parameters']]
+                fig.add_trace(
+                    go.Histogram(x=decay_factors, name='EWMA Decay Factors', 
+                               marker_color='lightgreen'),
+                    row=1, col=2
+                )
+            
+            # Lookback analysis
+            if 'historical' in param_analysis and param_analysis['historical']['count'] > 0:
+                lookbacks = [p['lookback_days'] for p in param_analysis['historical']['parameters']]
+                fig.add_trace(
+                    go.Histogram(x=lookbacks, name='Historical Lookbacks', 
+                               marker_color='lightcoral'),
+                    row=2, col=1
+                )
+            
+            # Score distribution
+            all_scores = []
+            for method in methods:
+                all_scores.extend(param_analysis[method]['scores'])
+            fig.add_trace(
+                go.Histogram(x=all_scores, name='All Scores', marker_color='orange'),
+                row=2, col=2
+            )
+            
+            fig.update_layout(
+                title_text="Return Prediction Parameter Analysis",
+                height=800,
+                showlegend=False
+            )
+            
+            return fig
+            
+        else:
+            methods = [m for m in param_analysis.keys() if param_analysis[m]['count'] > 0]
+            
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Method performance
+            method_scores = [param_analysis[m]['avg_score'] for m in methods]
+            axes[0, 0].bar(methods, method_scores, color=self.colors[0], alpha=0.7)
+            axes[0, 0].set_xlabel('Method')
+            axes[0, 0].set_ylabel('Average Score')
+            axes[0, 0].set_title('Method Performance')
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Parameter distribution for EWMA
+            if 'ewma' in param_analysis and param_analysis['ewma']['count'] > 0:
+                decay_factors = [p['decay_factor'] for p in param_analysis['ewma']['parameters']]
+                axes[0, 1].hist(decay_factors, bins=10, color=self.colors[1], alpha=0.7)
+                axes[0, 1].set_xlabel('Decay Factor')
+                axes[0, 1].set_ylabel('Frequency')
+                axes[0, 1].set_title('EWMA Decay Factor Distribution')
+                axes[0, 1].grid(True, alpha=0.3)
+            else:
+                axes[0, 1].text(0.5, 0.5, 'No EWMA data', ha='center', va='center')
+                axes[0, 1].set_title('EWMA Parameters')
+            
+            # Lookback analysis for Historical
+            if 'historical' in param_analysis and param_analysis['historical']['count'] > 0:
+                lookbacks = [p['lookback_days'] for p in param_analysis['historical']['parameters']]
+                axes[1, 0].hist(lookbacks, bins=10, color=self.colors[2], alpha=0.7)
+                axes[1, 0].set_xlabel('Lookback Days')
+                axes[1, 0].set_ylabel('Frequency')
+                axes[1, 0].set_title('Historical Lookback Distribution')
+                axes[1, 0].grid(True, alpha=0.3)
+            else:
+                axes[1, 0].text(0.5, 0.5, 'No Historical data', ha='center', va='center')
+                axes[1, 0].set_title('Historical Parameters')
+            
+            # Score distribution
+            all_scores = []
+            for method in methods:
+                all_scores.extend(param_analysis[method]['scores'])
+            axes[1, 1].hist(all_scores, bins=15, color=self.colors[3], alpha=0.7)
+            axes[1, 1].set_xlabel('Directional Accuracy Score')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].set_title('Score Distribution')
+            axes[1, 1].axvline(x=0.5, color='red', linestyle='--', alpha=0.7, label='Random (50%)')
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            return fig
+    
+    def save_all_plots_with_returns(self, analyzer, output_path: str = None):
+        """
+        Save all plots including return prediction visualizations
+        
+        Args:
+            analyzer: PortfolioLevelAnalyzer instance
+            output_path: Directory to save plots (default: results_dir/plots)
+        """
+        
+        if output_path is None:
+            output_path = analyzer.results_dir / "plots"
+        
+        output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Get data for standard plots
+        horizon_df = analyzer.get_horizon_comparison()
+        exposure_summary = analyzer.get_exposure_summary()
+        method_counts = analyzer.get_method_distribution()
+        test_portfolios_df = analyzer.get_test_portfolios_summary()
+        
+        # Save all plots including return prediction plots
+        plots_to_save = [
+            # Standard plots
+            (self.plot_horizon_comparison, (horizon_df,), "horizon_comparison.png"),
+            (self.plot_method_distribution, (method_counts,), "method_distribution.png"),
+            (self.plot_validation_quality, (test_portfolios_df,), "validation_quality.png"),
+            (self.plot_parameter_analysis, (exposure_summary,), "parameter_analysis.png"),
+            (self.plot_exposure_heatmap, (exposure_summary,), "exposure_heatmap.png"),
+            (self.plot_optimization_performance_curve, (analyzer,), "optimization_performance_curve.png"),
+            (self.plot_parameter_effectiveness, (analyzer,), "parameter_effectiveness.png"),
+            (self.plot_exposure_analysis, (analyzer,), "exposure_analysis.png"),
+            (self.plot_risk_estimates_results, (analyzer,), "risk_estimates_results.png"),
+            (self.plot_portfolio_composition_analysis, (analyzer,), "portfolio_composition_analysis.png"),
+            
+            # Return prediction plots
+            (self.plot_return_prediction_errors_by_exposure, (analyzer,), "return_prediction_errors_by_exposure.png"),
+            (self.plot_return_prediction_errors_by_horizon, (analyzer,), "return_prediction_errors_by_horizon.png"),
+            (self.plot_return_prediction_method_analysis, (analyzer,), "return_prediction_method_analysis.png"),
+            (self.plot_return_prediction_parameter_analysis, (analyzer,), "return_prediction_parameter_analysis.png"),
+        ]
+        
+        for plot_func, args, filename in plots_to_save:
+            try:
+                fig = plot_func(*args)
+                if fig is not None:
+                    fig.savefig(output_path / filename, dpi=300, bbox_inches='tight')
+                    plt.close(fig)
+                    print(f"Saved: {filename}")
+            except Exception as e:
+                print(f"Error saving {filename}: {e}")
+                
+        print(f"All plots (including return prediction) saved to: {output_path}")

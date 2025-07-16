@@ -1,523 +1,355 @@
-# Task: Web Interface Development - Phase 1 (Foundation)
+# Task: Fix Dividend Double-Counting in Total Returns
 
-**Status**: READY TO START  
-**Priority**: CRITICAL  
-**Estimated Time**: 3-4 days  
-**Approach**: Build thin API layer over existing functionality
+**Status**: COMPLETED ✅  
+**Priority**: HIGH  
+**Type**: Bug Fix  
+**Completed**: 2025-07-16
 
-## Overview
+## Problem Statement
 
-Create a web-based interface for the portfolio optimizer, making all the sophisticated functionality accessible through a modern web application. Focus on API-first design using FastAPI.
+The current implementation of total returns may be double-counting dividends:
 
-## Architecture Decision
+1. **Adjusted Close Already Includes Dividends**: When using `RawDataType.ADJUSTED_CLOSE` (default), the price series from yfinance already includes dividend adjustments
+2. **Code Adds Dividends Again**: The `_compute_total_returns` method fetches dividends separately and adds them to the adjusted prices
+3. **Result**: Dividends are counted twice, inflating total returns
 
-**Backend**: FastAPI (already in requirements)
-- Async support for real-time updates
-- Automatic API documentation
-- Type safety with Pydantic
-- Easy integration with existing code
+## Current Implementation Issues
 
-**Frontend**: React (separate task - Phase 2)
-- This task focuses on backend API only
-- Frontend will consume the API in next phase
-
-## Phase 1 Scope (This Task)
-
-### 1. Core API Structure
-
-**New Directory**: `src/web/`
-
-```
-src/web/
-├── __init__.py
-├── app.py              # FastAPI application
-├── api/
-│   ├── __init__.py
-│   ├── portfolios.py   # Portfolio endpoints
-│   ├── optimization.py # Optimization endpoints
-│   ├── analytics.py    # Analytics endpoints
-│   └── data.py         # Market data endpoints
-├── models/
-│   ├── __init__.py
-│   ├── requests.py     # Pydantic request models
-│   └── responses.py    # Pydantic response models
-└── services/
-    ├── __init__.py
-    └── portfolio_service.py  # Business logic layer
+### In `transformed_provider.py`:
+```python
+def _compute_total_returns(self, ...):
+    # Gets adjusted close (already includes dividends)
+    price_type = RawDataType.ADJUSTED_CLOSE if self.config["use_adjusted_close"] else RawDataType.OHLCV
+    prices = self.raw_provider.get_data(price_type, ...)
+    
+    # Then tries to add dividends again!
+    if self.config["dividend_reinvestment"]:
+        dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, ...)
+    
+    # This could double-count dividends
+    total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
 ```
 
-### 2. Essential Endpoints
+### In `return_calculator.py`:
+The `calculate_comprehensive_total_returns` method exists but isn't used. Need to verify if it's correct.
 
-**Portfolio Management**:
-- `POST /api/portfolios/` - Create portfolio from CSV/JSON
-- `GET /api/portfolios/{id}` - Get portfolio details
-- `PUT /api/portfolios/{id}/positions` - Update positions
-- `GET /api/portfolios/{id}/analytics` - Get performance metrics
-- `GET /api/portfolios/{id}/exposures` - Get exposure breakdown
+## Solution Design
 
-**Optimization**:
-- `POST /api/optimize/` - Run optimization
-- `GET /api/optimize/methods` - List available methods
-- `GET /api/optimize/parameters` - Get optimal parameters (from our 63-day result)
-- `POST /api/optimize/backtest` - Run backtest
-
-**Market Data**:
-- `GET /api/data/search` - Search for securities
-- `GET /api/data/prices/{symbol}` - Get price history
-- `GET /api/data/exposures` - List available exposures
-
-### 3. Core Implementation
-
-**File**: `src/web/app.py`
+### 1. Fix the Logic Flow
 
 ```python
-"""FastAPI application for portfolio optimizer."""
-
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-
-from .api import portfolios, optimization, analytics, data
-from ..data.exposure_universe import ExposureUniverse
-from ..data.providers.coordinator import RawDataProviderCoordinator
-
-logger = logging.getLogger(__name__)
-
-# Shared resources
-resources = {}
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize resources on startup."""
-    # Load exposure universe
-    resources['exposure_universe'] = ExposureUniverse.from_yaml('config/exposure_universe.yaml')
+def _compute_total_returns(self, start: date, end: date, ticker: str, frequency: str, **kwargs) -> pd.Series:
+    """Compute total returns with proper dividend handling."""
+    extended_start = self._extend_start_date(start, frequency, periods=1)
     
-    # Initialize data providers
-    resources['data_coordinator'] = RawDataProviderCoordinator()
-    
-    # Load optimal parameters
-    import yaml
-    with open('config/optimal_parameters_portfolio_level.yaml', 'r') as f:
-        resources['optimal_params'] = yaml.safe_load(f)
-    
-    logger.info("Application started successfully")
-    yield
-    # Cleanup
-    logger.info("Application shutting down")
-
-app = FastAPI(
-    title="Portfolio Optimizer API",
-    description="Sophisticated portfolio optimization with exposure-based analysis",
-    version="1.0.0",
-    lifespan=lifespan
-)
-
-# CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-app.include_router(portfolios.router, prefix="/api/portfolios", tags=["portfolios"])
-app.include_router(optimization.router, prefix="/api/optimize", tags=["optimization"])
-app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
-app.include_router(data.router, prefix="/api/data", tags=["market data"])
-
-@app.get("/")
-async def root():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "message": "Portfolio Optimizer API",
-        "optimal_horizon": resources['optimal_params']['optimal_horizon']
-    }
-```
-
-**File**: `src/web/api/portfolios.py`
-
-```python
-"""Portfolio management endpoints."""
-
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from typing import List, Dict
-import pandas as pd
-import io
-
-from ..models.requests import PortfolioCreate, PositionUpdate
-from ..models.responses import PortfolioResponse, ExposureResponse
-from ..services.portfolio_service import PortfolioService
-from ...portfolio.portfolio import Portfolio
-
-router = APIRouter()
-service = PortfolioService()
-
-@router.post("/", response_model=PortfolioResponse)
-async def create_portfolio(portfolio: PortfolioCreate):
-    """Create a new portfolio."""
-    try:
-        portfolio_id = service.create_portfolio(
-            name=portfolio.name,
-            positions=portfolio.positions
-        )
-        return service.get_portfolio(portfolio_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/upload", response_model=PortfolioResponse)
-async def upload_portfolio(file: UploadFile = File(...)):
-    """Upload portfolio from CSV."""
-    try:
-        contents = await file.read()
-        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+    if self.config["use_adjusted_close"]:
+        # OPTION A: Use adjusted close (dividends already included)
+        prices = self.raw_provider.get_data(RawDataType.ADJUSTED_CLOSE, extended_start, end, ticker, frequency)
         
-        # Convert to positions
-        positions = []
-        for _, row in df.iterrows():
-            positions.append({
-                "symbol": row["symbol"],
-                "shares": row["shares"],
-                "cost_basis": row.get("cost_basis", None)
-            })
+        # Calculate returns from adjusted prices (no explicit dividends needed)
+        total_returns = self.return_calculator.calculate_simple_returns(prices, frequency)
         
-        portfolio_id = service.create_portfolio(
-            name=file.filename.replace('.csv', ''),
-            positions=positions
-        )
-        return service.get_portfolio(portfolio_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/{portfolio_id}/exposures", response_model=ExposureResponse)
-async def get_exposures(portfolio_id: str):
-    """Get portfolio exposure breakdown."""
-    try:
-        exposures = service.calculate_exposures(portfolio_id)
-        return ExposureResponse(
-            portfolio_id=portfolio_id,
-            exposures=exposures,
-            chart_data=service.prepare_exposure_chart_data(exposures)
-        )
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-```
-
-**File**: `src/web/api/optimization.py`
-
-```python
-"""Optimization endpoints."""
-
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from datetime import datetime
-from typing import Optional
-
-from ..models.requests import OptimizationRequest
-from ..models.responses import OptimizationResponse, OptimizationStatus
-from ...optimization.portfolio_optimizer import PortfolioOptimizer
-from ..app import resources
-
-router = APIRouter()
-
-# Store running optimizations
-running_optimizations = {}
-
-@router.post("/", response_model=OptimizationResponse)
-async def run_optimization(
-    request: OptimizationRequest,
-    background_tasks: BackgroundTasks
-):
-    """Run portfolio optimization."""
-    try:
-        # Get optimal parameters
-        optimal_horizon = resources['optimal_params']['optimal_horizon']
+        logger.debug(f"Using adjusted close prices for {ticker} - dividends implicitly included")
         
-        # Initialize optimizer
-        optimizer = PortfolioOptimizer(
-            exposure_universe=resources['exposure_universe'],
-            data_coordinator=resources['data_coordinator']
-        )
+    else:
+        # OPTION B: Use unadjusted close with explicit dividends
+        prices = self.raw_provider.get_data(RawDataType.OHLCV, extended_start, end, ticker, frequency)
         
-        # Run optimization (could be async in production)
-        result = optimizer.optimize(
-            tickers=request.tickers,
-            method=request.method,
-            constraints=request.constraints,
-            lookback_days=request.lookback_days or 252,
-            forecast_horizon=optimal_horizon  # Use our optimal!
-        )
+        # Get corporate actions
+        dividends = None
+        splits = None
         
-        return OptimizationResponse(
-            status="completed",
-            optimal_weights=result['weights'],
-            expected_return=result['expected_return'],
-            expected_volatility=result['expected_volatility'],
-            sharpe_ratio=result['sharpe_ratio'],
-            diversification_ratio=result['diversification_ratio']
-        )
+        if self.config["dividend_reinvestment"]:
+            try:
+                dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, extended_start, end, ticker, frequency)
+            except DataNotAvailableError:
+                logger.debug(f"No dividend data available for {ticker}")
         
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/parameters")
-async def get_optimal_parameters():
-    """Get optimal parameters from portfolio-level optimization."""
-    params = resources['optimal_params']
-    
-    return {
-        "optimal_horizon": params['optimal_horizon'],
-        "portfolio_rmse": params[f'horizon_{params["optimal_horizon"]}_results']['portfolio_rmse'],
-        "volatility_methods": {
-            exp: details['method'] 
-            for exp, details in params[f'horizon_{params["optimal_horizon"]}_results']['volatility_parameters'].items()
-        },
-        "correlation_method": params[f'horizon_{params["optimal_horizon"]}_results']['correlation_parameters']['method']
-    }
-```
-
-### 4. Pydantic Models
-
-**File**: `src/web/models/requests.py`
-
-```python
-"""Request models for API."""
-
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
-from datetime import datetime
-
-class PositionCreate(BaseModel):
-    symbol: str
-    shares: float
-    cost_basis: Optional[float] = None
-
-class PortfolioCreate(BaseModel):
-    name: str
-    positions: List[PositionCreate]
-
-class OptimizationConstraints(BaseModel):
-    min_weight: float = 0.0
-    max_weight: float = 1.0
-    target_volatility: Optional[float] = None
-    max_positions: Optional[int] = None
-
-class OptimizationRequest(BaseModel):
-    tickers: List[str]
-    method: str = "max_sharpe"  # max_sharpe, min_volatility, risk_parity
-    constraints: Optional[OptimizationConstraints] = None
-    lookback_days: Optional[int] = 252
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-```
-
-**File**: `src/web/models/responses.py`
-
-```python
-"""Response models for API."""
-
-from pydantic import BaseModel
-from typing import Dict, List, Optional
-from datetime import datetime
-
-class PositionResponse(BaseModel):
-    symbol: str
-    shares: float
-    cost_basis: Optional[float]
-    current_value: float
-    weight: float
-    return_pct: float
-
-class PortfolioResponse(BaseModel):
-    id: str
-    name: str
-    total_value: float
-    positions: List[PositionResponse]
-    created_at: datetime
-    updated_at: datetime
-
-class ExposureResponse(BaseModel):
-    portfolio_id: str
-    exposures: Dict[str, float]
-    chart_data: Dict  # For visualization
-
-class OptimizationResponse(BaseModel):
-    status: str
-    optimal_weights: Dict[str, float]
-    expected_return: float
-    expected_volatility: float
-    sharpe_ratio: float
-    diversification_ratio: float
-    trades: Optional[List[Dict]] = None
-```
-
-### 5. Service Layer
-
-**File**: `src/web/services/portfolio_service.py`
-
-```python
-"""Business logic for portfolio operations."""
-
-import uuid
-from typing import Dict, List
-from datetime import datetime
-
-from ...portfolio.portfolio import Portfolio
-from ...portfolio.position import Position
-from ..app import resources
-
-class PortfolioService:
-    """Handles portfolio business logic."""
-    
-    def __init__(self):
-        # In production, this would use a database
-        self.portfolios: Dict[str, Portfolio] = {}
-    
-    def create_portfolio(self, name: str, positions: List[Dict]) -> str:
-        """Create a new portfolio."""
-        portfolio_id = str(uuid.uuid4())
-        portfolio = Portfolio(name=name)
+        try:
+            splits = self.raw_provider.get_data(RawDataType.SPLIT, extended_start, end, ticker, frequency)
+        except DataNotAvailableError:
+            logger.debug(f"No split data available for {ticker}")
         
-        # Add positions
-        for pos_data in positions:
-            position = Position(
-                symbol=pos_data['symbol'],
-                shares=pos_data['shares'],
-                cost_basis=pos_data.get('cost_basis')
+        # Use comprehensive method for unadjusted prices
+        if splits is not None and not splits.empty:
+            total_returns = self.return_calculator.calculate_comprehensive_total_returns(
+                prices, dividends, splits
             )
-            portfolio.add_position(position)
+        else:
+            # No splits, just handle dividends
+            total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
         
-        self.portfolios[portfolio_id] = portfolio
-        return portfolio_id
+        logger.debug(f"Using unadjusted prices for {ticker} with explicit dividends/splits")
     
-    def get_portfolio(self, portfolio_id: str) -> Dict:
-        """Get portfolio details."""
-        if portfolio_id not in self.portfolios:
-            raise ValueError(f"Portfolio {portfolio_id} not found")
-        
-        portfolio = self.portfolios[portfolio_id]
-        
-        # Get current prices
-        data_provider = resources['data_coordinator']
-        end_date = datetime.now()
-        
-        # Convert to response format
-        return {
-            "id": portfolio_id,
-            "name": portfolio.name,
-            "total_value": portfolio.get_total_value(),
-            "positions": self._format_positions(portfolio),
-            "created_at": datetime.now(),  # In production, track this
-            "updated_at": datetime.now()
-        }
-    
-    def calculate_exposures(self, portfolio_id: str) -> Dict[str, float]:
-        """Calculate portfolio exposures."""
-        # This will use the fund exposure mappings
-        # For now, return placeholder
-        return {
-            "us_large_equity": 0.4,
-            "international_equity": 0.2,
-            "broad_ust": 0.3,
-            "trend_following": 0.1
-        }
+    # Trim to requested date range
+    return self._trim_and_convert(total_returns, start, end, frequency, frequency, "return")
 ```
 
-### 6. Running the Application
+### 2. Update Configuration
 
-**New File**: `scripts/run_web.py`
+Make the configuration more explicit:
 
 ```python
-"""Run the web application."""
+# In TransformedDataProvider.__init__
+self.config = {
+    "use_adjusted_close": True,  # When True, dividends are implicit
+    "dividend_reinvestment": True,  # Only applies when use_adjusted_close=False
+    "handle_splits": True,  # Only applies when use_adjusted_close=False
+    # ... other config
+}
+```
 
-import uvicorn
-import sys
-from pathlib import Path
+### 3. Add Configuration Validation
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+```python
+def _validate_config(self):
+    """Validate configuration consistency."""
+    if self.config["use_adjusted_close"] and self.config.get("explicit_dividends", False):
+        logger.warning("Both use_adjusted_close and explicit_dividends are True - "
+                      "dividends are already in adjusted prices")
+```
 
-if __name__ == "__main__":
-    uvicorn.run(
-        "src.web.app:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+## Verification of Comprehensive Method
+
+Need to verify `calculate_comprehensive_total_returns` handles:
+
+1. **Split Adjustment**: Ensure splits are applied correctly
+   - Forward-adjust share counts
+   - Backward-adjust prices
+   - Verify split ratio direction (2.0 = 2:1 split)
+
+2. **Dividend Timing**: Ensure dividends are added on ex-dividend date
+
+3. **Order of Operations**: 
+   - Apply splits first (affects share count)
+   - Then add dividends (per share)
+   - Then calculate returns
+
+### ISSUE FOUND IN COMPREHENSIVE METHOD
+
+The current implementation has a **critical bug** in split handling:
+
+```python
+# Current incorrect formula:
+total_return = ((p_curr + div_curr) * split_curr) / p_prev - 1
+```
+
+This is wrong because:
+- It multiplies the current price by the split ratio
+- This would make a 2:1 split look like a 100% gain!
+
+The correct approach should be:
+```python
+# OPTION 1: Adjust previous price for split
+total_return = (p_curr + div_curr) / (p_prev / split_curr) - 1
+
+# OR OPTION 2: Track cumulative adjustment
+# Maintain adjusted price series throughout
+```
+
+### Corrected Implementation for Comprehensive Method
+
+```python
+def calculate_comprehensive_total_returns(
+    self,
+    prices: pd.Series,
+    dividends: Optional[pd.Series] = None,
+    splits: Optional[pd.Series] = None
+) -> pd.Series:
+    """
+    Calculate comprehensive total returns including all corporate actions.
+    
+    Stock split handling:
+    - A 2:1 split means you get 2 shares for every 1 share
+    - The price drops by half to maintain market cap
+    - We need to adjust historical prices to be comparable
+    """
+    if len(prices) < 2:
+        return pd.Series(dtype=float, index=prices.index, 
+                        name=f"{prices.name}_comprehensive_total_returns")
+    
+    # Align all data
+    df = pd.DataFrame({'price': prices})
+    df['dividend'] = dividends if dividends is not None else 0
+    df['split'] = splits if splits is not None else 1
+    
+    # Fill missing values
+    df['dividend'] = df['dividend'].fillna(0)
+    df['split'] = df['split'].fillna(1)
+    
+    # Calculate cumulative split adjustment factor
+    # This tracks how many shares you would have from splits
+    df['cum_split_factor'] = df['split'].cumprod()
+    
+    # Calculate split-adjusted prices (comparable across time)
+    # Current price divided by cumulative splits gives comparable price
+    df['adj_price'] = df['price'] / df['cum_split_factor']
+    
+    # Calculate returns using adjusted prices and dividends
+    # Dividends are already on a per-share basis post-split
+    df['total_return'] = (
+        (df['adj_price'] + df['dividend'] / df['cum_split_factor']) / 
+        df['adj_price'].shift(1) - 1
     )
+    
+    # Alternative approach: track share count
+    # shares = 1.0  # Start with 1 share
+    # for i in range(1, len(df)):
+    #     shares *= df['split'].iloc[i]  # Adjust share count
+    #     value_prev = shares * df['price'].iloc[i-1]
+    #     value_curr = shares * (df['price'].iloc[i] + df['dividend'].iloc[i])
+    #     df.loc[df.index[i], 'total_return'] = value_curr / value_prev - 1
+    
+    return df['total_return']
 ```
 
-### 7. Testing
-
-**New File**: `tests/web/test_api.py`
-
+### Test Case for Verification:
 ```python
-"""Test API endpoints."""
-
-from fastapi.testclient import TestClient
-from src.web.app import app
-
-client = TestClient(app)
-
-def test_health_check():
-    """Test root endpoint."""
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
-
-def test_create_portfolio():
-    """Test portfolio creation."""
-    portfolio_data = {
-        "name": "Test Portfolio",
-        "positions": [
-            {"symbol": "VOO", "shares": 100},
-            {"symbol": "BND", "shares": 200}
-        ]
-    }
-    response = client.post("/api/portfolios/", json=portfolio_data)
-    assert response.status_code == 200
-    assert response.json()["name"] == "Test Portfolio"
-
-def test_optimization():
-    """Test optimization endpoint."""
-    opt_request = {
-        "tickers": ["VOO", "BND", "GLD"],
-        "method": "max_sharpe"
-    }
-    response = client.post("/api/optimize/", json=opt_request)
-    assert response.status_code == 200
-    assert "optimal_weights" in response.json()
+def test_comprehensive_returns_with_split():
+    """Test that comprehensive returns handle splits correctly."""
+    # Create test data
+    dates = pd.date_range('2024-01-01', '2024-01-05', freq='D')
+    
+    # Prices: 100 -> 102 -> 51 (split) -> 52 -> 53
+    prices = pd.Series([100, 102, 51, 52, 53], index=dates)
+    
+    # 2:1 split on day 3
+    splits = pd.Series([1, 1, 2, 1, 1], index=dates)
+    
+    # $1 dividend on day 4
+    dividends = pd.Series([0, 0, 0, 1, 0], index=dates)
+    
+    returns = calculator.calculate_comprehensive_total_returns(prices, dividends, splits)
+    
+    # Expected returns:
+    # Day 1->2: 102/100 - 1 = 2%
+    # Day 2->3: (51*2)/102 - 1 = 0% (split-adjusted)
+    # Day 3->4: (52+1)/51 - 1 = 3.92%
+    # Day 4->5: 53/52 - 1 = 1.92%
+    
+    assert abs(returns.iloc[1] - 0.02) < 1e-6
+    assert abs(returns.iloc[2] - 0.0) < 1e-6
+    assert abs(returns.iloc[3] - 0.0392) < 1e-4
+    assert abs(returns.iloc[4] - 0.0192) < 1e-4
 ```
+
+## Implementation Steps
+
+1. **Create Tests First**
+   - Test double-counting scenario
+   - Test adjusted vs unadjusted price handling
+   - Test comprehensive method with real data
+   - Test edge cases (no dividends, multiple splits)
+
+2. **Fix TransformedDataProvider**
+   - Implement new logic flow
+   - Add configuration validation
+   - Update logging for clarity
+
+3. **Verify/Fix Comprehensive Method**
+   - Review split handling logic
+   - Test with known split/dividend events
+   - Compare results with external sources
+
+4. **Update Documentation**
+   - Document when to use adjusted vs unadjusted
+   - Explain configuration options
+   - Add examples to docstrings
+
+5. **Integration Testing**
+   - Test with real tickers known to have dividends/splits
+   - Compare total returns with external sources
+   - Verify optimizer still works correctly
+
+## Test Tickers for Verification
+
+Use these tickers with known corporate actions:
+
+- **AAPL**: Regular dividends, had 4:1 split in 2020
+- **MSFT**: Regular dividends, no recent splits
+- **TSLA**: No dividends, had 5:1 split in 2020
+- **T (AT&T)**: High dividend yield, spin-offs
+- **SPY**: ETF with regular distributions
 
 ## Success Criteria
 
-- [ ] FastAPI application structure created
-- [ ] Core endpoints implemented (portfolios, optimization, data)
-- [ ] Pydantic models for type safety
-- [ ] Service layer for business logic
-- [ ] Integration with existing optimization engine
-- [ ] Optimal parameters (189-day horizon) used by default
-- [ ] API documentation auto-generated
-- [ ] Basic tests passing
-- [ ] Application runs with `python scripts/run_web.py`
+- [x] No double-counting of dividends when using adjusted prices
+- [x] Correct handling of dividends with unadjusted prices
+- [x] Comprehensive method correctly handles splits
+- [x] All existing tests still pass
+- [x] New tests cover all scenarios
+- [x] Documentation clearly explains the options
+- [x] Performance not significantly impacted
 
-## Next Steps (Phase 2)
+## Questions for Review
 
-After this API is complete:
-1. Build React frontend
-2. Add WebSocket support for real-time updates
-3. Implement authentication
-4. Add database persistence
-5. Deploy to cloud
+1. Should we default to adjusted prices (simpler) or unadjusted (more control)?
+2. Do we need to handle other corporate actions (spin-offs, special dividends)?
+3. Should we add a method to decompose historical returns into price/dividend components?
 
-## Key Design Decisions
+## Notes
 
-1. **Thin API Layer**: The API should be a thin wrapper around existing functionality
-2. **No Business Logic**: All calculations use existing modules
-3. **Stateless Design**: Use REST principles, state in database (later)
-4. **Configuration-Driven**: Use our optimal parameters by default
-5. **Error Handling**: Graceful errors with helpful messages
+- This is a critical fix as it affects all return calculations
+- The issue may have inflated historical returns in optimizations
+- After fixing, we should re-run parameter optimizations to see impact
+- Consider adding return decomposition for the earnings analysis requested
 
-This creates a professional, production-ready API that showcases the portfolio optimizer's capabilities!
+## Bonus: Return Decomposition Method
+
+For the earnings decomposition analysis requested by the user, add this method:
+
+```python
+def decompose_returns(
+    self,
+    ticker: str,
+    start: date,
+    end: date,
+    earnings_data: Optional[pd.Series] = None
+) -> Dict[str, pd.Series]:
+    """
+    Decompose total returns into components:
+    - Dividend yield
+    - Price appreciation (if no earnings data)
+    - OR: Earnings growth + P/E change (if earnings provided)
+    
+    Total Return ≈ Dividend Yield + Price Appreciation
+    Total Return ≈ Dividend Yield + Earnings Growth + P/E Change
+    """
+    # Get raw data
+    prices = self.get_data(RawDataType.OHLCV, start, end, ticker)
+    adj_prices = self.get_data(RawDataType.ADJUSTED_CLOSE, start, end, ticker)
+    dividends = self.get_data(RawDataType.DIVIDEND, start, end, ticker)
+    
+    # Calculate dividend yield
+    div_yield = dividends / prices.shift(1)
+    div_yield = div_yield.fillna(0)
+    
+    # Calculate price appreciation from adjusted prices
+    price_return = adj_prices.pct_change()
+    
+    if earnings_data is not None:
+        # Calculate P/E ratios
+        pe_ratio = prices / earnings_data
+        
+        # Earnings growth
+        earnings_growth = earnings_data.pct_change()
+        
+        # P/E change
+        pe_change = pe_ratio.pct_change()
+        
+        return {
+            'total_return': price_return,
+            'dividend_yield': div_yield,
+            'earnings_growth': earnings_growth,
+            'pe_change': pe_change,
+            'price_return_ex_div': price_return - div_yield
+        }
+    else:
+        return {
+            'total_return': price_return,
+            'dividend_yield': div_yield,
+            'price_appreciation': price_return - div_yield
+        }
+```
+
+This enables the sophisticated analysis of return components that makes time series forecasting more tractable.

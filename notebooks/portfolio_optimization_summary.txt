@@ -1,0 +1,31 @@
+PORTFOLIO-LEVEL OPTIMIZATION ANALYSIS REPORT
+==================================================
+Generated: 2025-07-14 19:15:15
+
+OPTIMIZATION OVERVIEW
+--------------------
+Optimal Horizon: 63 days
+Portfolio RMSE: 0.0018
+Goodness Score: -3.08e-06
+Number of Exposures: 17
+
+METHOD DISTRIBUTION
+------------------
+ewma: 14 exposures
+historical: 3 exposures
+
+HORIZON COMPARISON
+------------------
+63_day: RMSE=0.0018, Score=-3.08e-06
+
+IMPROVEMENT METRICS
+------------------
+Best Horizon: 63_day
+RMSE Improvement: 0.0%
+Goodness Improvement: 0.0%
+
+VALIDATION SUMMARY
+-----------------
+Number of Tests: 45
+Portfolio MSE: 3.08e-06
+Portfolio RMSE: 0.0018

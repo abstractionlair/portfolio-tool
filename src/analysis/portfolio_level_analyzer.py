@@ -23,6 +23,7 @@ class OptimizationResults:
     goodness_score: float
     volatility_parameters: Dict
     correlation_parameters: Dict
+    return_parameters: Dict
     validation_metrics: Dict
     horizon_comparison: Dict
     optimization_metadata: Dict
@@ -133,16 +134,25 @@ class PortfolioLevelAnalyzer:
             for horizon_str, result in detailed_data['all_horizon_results'].items():
                 horizon_comparison[f"{horizon_str}_day"] = {
                     'goodness_score': result['goodness_score'],
-                    'portfolio_rmse': result['validation_metrics']['rmse']
+                    'portfolio_rmse': result['validation_metrics'].get('vol_rmse', 
+                                                                     result['validation_metrics'].get('rmse', 0.0))
                 }
         
+        # Extract return parameters from JSON or YAML
+        if config_data and 'return_parameters' in config_data:
+            return_parameters = config_data['return_parameters']
+        else:
+            # Fallback: extract from JSON structure if available
+            return_parameters = detailed_data['optimal_parameters'].get('return_params', {})
+            
         # Create results object
         self.results = OptimizationResults(
             optimal_horizon=optimal_horizon,
-            portfolio_rmse=validation_metrics['rmse'],
+            portfolio_rmse=validation_metrics.get('vol_rmse', validation_metrics.get('rmse', 0.0)),
             goodness_score=detailed_data['optimal_parameters']['goodness_score'],
             volatility_parameters=volatility_parameters,
             correlation_parameters={},  # Will be populated if needed
+            return_parameters=return_parameters,
             validation_metrics=validation_metrics,
             horizon_comparison=horizon_comparison,
             optimization_metadata=detailed_data.get('optimization_metadata', {})
@@ -472,6 +482,232 @@ class PortfolioLevelAnalyzer:
             'horizons_tested': len(horizon_df),
             'performance_curve': horizon_df[['horizon_days', 'portfolio_rmse']].to_dict('records')
         }
+    
+    def get_return_prediction_analysis(self) -> Dict:
+        """Analyze return prediction performance across exposures, methods, and horizons"""
+        
+        if self.results is None:
+            self.load_results()
+            
+        if not self.results.return_parameters:
+            return {'note': 'No return parameters found in results'}
+            
+        # Analyze return prediction methods
+        return_analysis = {
+            'method_distribution': {},
+            'exposure_performance': {},
+            'parameter_analysis': {},
+            'horizon_analysis': {}
+        }
+        
+        # Method distribution
+        for exposure_id, params in self.results.return_parameters.items():
+            method = params['method']
+            score = params['validation_score']
+            
+            if method not in return_analysis['method_distribution']:
+                return_analysis['method_distribution'][method] = {
+                    'count': 0,
+                    'avg_score': 0.0,
+                    'scores': []
+                }
+            
+            return_analysis['method_distribution'][method]['count'] += 1
+            return_analysis['method_distribution'][method]['scores'].append(score)
+            
+            # Exposure performance
+            return_analysis['exposure_performance'][exposure_id] = {
+                'method': method,
+                'score': score,
+                'horizon': params['horizon'],
+                'parameters': params['parameters']
+            }
+        
+        # Calculate average scores for each method
+        for method, data in return_analysis['method_distribution'].items():
+            data['avg_score'] = np.mean(data['scores'])
+            data['std_score'] = np.std(data['scores'])
+            data['min_score'] = np.min(data['scores'])
+            data['max_score'] = np.max(data['scores'])
+        
+        # Parameter analysis by method
+        for method in return_analysis['method_distribution'].keys():
+            method_params = []
+            for exposure_id, params in self.results.return_parameters.items():
+                if params['method'] == method:
+                    method_params.append({
+                        'exposure': exposure_id,
+                        'score': params['validation_score'],
+                        'parameters': params['parameters']
+                    })
+            
+            return_analysis['parameter_analysis'][method] = method_params
+        
+        # Horizon analysis - compare across all horizons if available
+        if self.detailed_results and 'all_horizon_results' in self.detailed_results:
+            for horizon_str, result in self.detailed_results['all_horizon_results'].items():
+                horizon = int(horizon_str)
+                
+                if 'return_params' in result:
+                    horizon_return_accuracy = []
+                    for exposure_id, params in result['return_params'].items():
+                        if 'validation_score' in params:
+                            horizon_return_accuracy.append(params['validation_score'])
+                    
+                    if horizon_return_accuracy:
+                        return_analysis['horizon_analysis'][horizon] = {
+                            'avg_return_accuracy': np.mean(horizon_return_accuracy),
+                            'std_return_accuracy': np.std(horizon_return_accuracy),
+                            'min_return_accuracy': np.min(horizon_return_accuracy),
+                            'max_return_accuracy': np.max(horizon_return_accuracy),
+                            'n_exposures': len(horizon_return_accuracy)
+                        }
+        
+        return return_analysis
+    
+    def get_return_prediction_errors_by_exposure(self) -> pd.DataFrame:
+        """Get detailed return prediction errors by exposure"""
+        
+        if self.results is None:
+            self.load_results()
+            
+        if not self.results.return_parameters:
+            return pd.DataFrame()
+            
+        error_data = []
+        
+        for exposure_id, params in self.results.return_parameters.items():
+            # Extract error information
+            score = params['validation_score']
+            method = params['method']
+            horizon = params['horizon']
+            
+            # Directional accuracy interpretation
+            # Higher score = better directional accuracy
+            error_rate = 1.0 - score  # Error rate = 1 - accuracy
+            
+            error_data.append({
+                'exposure': exposure_id,
+                'method': method,
+                'horizon': horizon,
+                'directional_accuracy': score,
+                'error_rate': error_rate,
+                'parameters': str(params['parameters'])
+            })
+        
+        return pd.DataFrame(error_data)
+    
+    def get_return_prediction_errors_by_method(self) -> pd.DataFrame:
+        """Get return prediction errors aggregated by method"""
+        
+        errors_df = self.get_return_prediction_errors_by_exposure()
+        if errors_df.empty:
+            return pd.DataFrame()
+        
+        # Group by method and calculate statistics
+        method_stats = errors_df.groupby('method').agg({
+            'directional_accuracy': ['mean', 'std', 'min', 'max', 'count'],
+            'error_rate': ['mean', 'std', 'min', 'max']
+        }).round(4)
+        
+        # Flatten column names
+        method_stats.columns = ['_'.join(col).strip() for col in method_stats.columns]
+        method_stats = method_stats.reset_index()
+        
+        return method_stats
+    
+    def get_return_prediction_errors_by_horizon(self) -> pd.DataFrame:
+        """Get return prediction errors by horizon across all tested horizons"""
+        
+        if self.results is None:
+            self.load_results()
+            
+        if not self.detailed_results or 'all_horizon_results' not in self.detailed_results:
+            return pd.DataFrame()
+        
+        horizon_data = []
+        
+        for horizon_str, result in self.detailed_results['all_horizon_results'].items():
+            horizon = int(horizon_str)
+            
+            if 'return_params' in result:
+                return_accuracies = []
+                method_counts = {}
+                
+                for exposure_id, params in result['return_params'].items():
+                    if 'validation_score' in params:
+                        return_accuracies.append(params['validation_score'])
+                        method = params['method']
+                        method_counts[method] = method_counts.get(method, 0) + 1
+                
+                if return_accuracies:
+                    horizon_data.append({
+                        'horizon': horizon,
+                        'avg_directional_accuracy': np.mean(return_accuracies),
+                        'std_directional_accuracy': np.std(return_accuracies),
+                        'min_directional_accuracy': np.min(return_accuracies),
+                        'max_directional_accuracy': np.max(return_accuracies),
+                        'avg_error_rate': 1.0 - np.mean(return_accuracies),
+                        'n_exposures': len(return_accuracies),
+                        'dominant_method': max(method_counts, key=method_counts.get) if method_counts else None,
+                        'method_diversity': len(method_counts)
+                    })
+        
+        return pd.DataFrame(horizon_data).sort_values('horizon')
+    
+    def get_return_prediction_parameter_analysis(self) -> Dict:
+        """Analyze return prediction parameters for patterns and effectiveness"""
+        
+        if self.results is None:
+            self.load_results()
+            
+        if not self.results.return_parameters:
+            return {'note': 'No return parameters found in results'}
+        
+        parameter_analysis = {}
+        
+        # Analyze parameters by method
+        for method in ['historical', 'ewma', 'momentum', 'mean_reversion']:
+            method_params = []
+            method_scores = []
+            
+            for exposure_id, params in self.results.return_parameters.items():
+                if params['method'] == method:
+                    method_params.append(params['parameters'])
+                    method_scores.append(params['validation_score'])
+            
+            if method_params:
+                parameter_analysis[method] = {
+                    'count': len(method_params),
+                    'avg_score': np.mean(method_scores),
+                    'parameters': method_params,
+                    'scores': method_scores
+                }
+                
+                # Analyze parameter patterns
+                if method == 'historical':
+                    lookbacks = [p.get('lookback_days', 0) for p in method_params]
+                    parameter_analysis[method]['avg_lookback'] = np.mean(lookbacks)
+                    parameter_analysis[method]['lookback_range'] = [np.min(lookbacks), np.max(lookbacks)]
+                    
+                elif method == 'ewma':
+                    decay_factors = [p.get('decay_factor', 0) for p in method_params]
+                    parameter_analysis[method]['avg_decay_factor'] = np.mean(decay_factors)
+                    parameter_analysis[method]['decay_range'] = [np.min(decay_factors), np.max(decay_factors)]
+                    
+                elif method == 'momentum':
+                    momentum_periods = [p.get('momentum_period', 0) for p in method_params]
+                    momentum_strengths = [p.get('momentum_strength', 0) for p in method_params]
+                    parameter_analysis[method]['avg_momentum_period'] = np.mean(momentum_periods)
+                    parameter_analysis[method]['avg_momentum_strength'] = np.mean(momentum_strengths)
+                    
+                elif method == 'mean_reversion':
+                    recent_periods = [p.get('recent_period', 0) for p in method_params]
+                    reversion_strengths = [p.get('reversion_strength', 0) for p in method_params]
+                    parameter_analysis[method]['avg_recent_period'] = np.mean(recent_periods)
+                    parameter_analysis[method]['avg_reversion_strength'] = np.mean(reversion_strengths)
+        
+        return parameter_analysis
         
     def get_parameter_effectiveness_analysis(self) -> Dict:
         """Analyze parameter effectiveness across methods"""

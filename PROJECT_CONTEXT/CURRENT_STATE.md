@@ -1,5 +1,5 @@
 # Portfolio Optimizer - Current Project State
-*Last Updated: 2025-07-13 by Desktop Claude*
+*Last Updated: 2025-07-16 by Desktop Claude*
 
 ## Project Overview
 - **Repository**: https://github.com/abstractionlair/portfolio-optimizer
@@ -121,34 +121,36 @@ DataProvider Protocol ✅
         └── FrequencyConverter ✅
 ```
 
-## Current Task: Web Interface Development - Phase 1
+## ✅ **Critical Bug Fix: Dividend Double-Counting Resolved (2025-07-16) - COMPLETE**
+Foundation data layer bug fixes that ensure all subsequent optimizations use correct returns:
 
-**Status**: IN PROGRESS  
-**Priority**: CRITICAL
-**Task File**: `/PROJECT_CONTEXT/TASKS/current_task.md`
+**Critical Issues Fixed:**
+- ✅ **Dividend Double-Counting**: Fixed logic in TransformedDataProvider to avoid counting dividends twice when using adjusted close prices
+- ✅ **Stock Split Handling**: Corrected comprehensive total returns method to properly handle stock splits (2:1 splits now correctly show 0% return)
+- ✅ **Configuration Validation**: Added proper validation and documentation for adjusted vs unadjusted price handling
+- ✅ **Comprehensive Testing**: Created 14 new tests covering dividend double-counting, split handling, and real-world scenarios
 
-### Why This Task Now?
+**Technical Implementation:**
+- **Fixed Method**: `_compute_total_returns` now correctly uses simple returns from adjusted prices (no explicit dividends)
+- **Split Algorithm**: Corrected split adjustment formula from buggy `((p_curr + div_curr) * split_curr) / p_prev - 1` to proper `(p_curr + div_curr) / (p_prev / split_curr) - 1`
+- **Return Decomposition**: Added bonus `decompose_returns` method for earnings analysis (total = dividend yield + price appreciation + P/E change)
+- **Backward Compatibility**: All existing tests pass with updated expectations
 
-With the sophisticated portfolio-level optimization complete, we need to make this functionality accessible:
-- **User Value**: Transform from Python scripts to usable web application
-- **Showcase Value**: Demonstrates full-stack capabilities to employers
-- **Integration Test**: Building API reveals any design gaps
-- **Natural Milestone**: Core engine is feature-complete
+**Impact Assessment:**
+- **All Historical Returns**: Previously calculated returns were potentially inflated due to double-counting
+- **Portfolio Optimization**: Parameter optimization was based on incorrect data and may need re-running
+- **Risk Estimates**: Volatility and correlation estimates may have been distorted by inflated returns
 
-### Task Scope
+**Files Modified:**
+- `src/data/providers/transformed_provider.py` - Fixed dividend double-counting logic
+- `src/data/providers/calculators/return_calculator.py` - Fixed split handling in comprehensive method
+- `tests/data/test_return_calculation_fixes.py` - 14 comprehensive tests (all passing)
+- Updated existing tests to reflect correct behavior
 
-**Phase 1 (Current)**: FastAPI Backend
-- RESTful API for all optimizer functionality
-- Integration with 63-day optimal parameters
-- Portfolio management endpoints
-- Optimization endpoints with our sophisticated methods
-- Real-time market data access
-
-**Phase 2 (Next)**: React Frontend
-- Modern responsive UI
-- Interactive portfolio analysis
-- Real-time optimization results
-- Visualization of exposures and risk
+**Test Coverage:**
+- 52/52 tests passing across all return calculation modules
+- Coverage includes: dividend double-counting detection, split handling, real-world scenarios (AAPL/TSLA-like), return decomposition
+- Verified with high-dividend stocks, no-dividend stocks, and complex corporate actions
 
 ## Data Layer Status Summary
 

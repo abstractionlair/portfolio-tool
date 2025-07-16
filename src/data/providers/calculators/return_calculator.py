@@ -148,6 +148,11 @@ class ReturnCalculator:
         - Stock splits and stock dividends
         - Other corporate actions affecting share count
         
+        Stock split handling:
+        - A 2:1 split means you get 2 shares for every 1 share
+        - The price drops by half to maintain market cap
+        - We need to adjust historical prices to be comparable
+        
         Args:
             prices: Price series (should be unadjusted close for accuracy)
             dividends: Dividend series (per share payments)
@@ -160,8 +165,6 @@ class ReturnCalculator:
             logger.warning("Need at least 2 price observations for return calculation")
             return pd.Series(dtype=float, index=prices.index, name=f"{prices.name}_comprehensive_total_returns")
         
-        # If using adjusted close prices (which already account for splits),
-        # and we have split data, we need to be careful not to double-adjust
         logger.info("Calculating comprehensive total returns with corporate actions")
         
         # Align all data on common index
@@ -191,47 +194,41 @@ class ReturnCalculator:
         aligned_data['dividends'] = aligned_data.get('dividends', pd.Series(index=aligned_data.index)).fillna(0.0)
         aligned_data['splits'] = aligned_data.get('splits', pd.Series(index=aligned_data.index)).fillna(1.0)
         
-        # Calculate comprehensive total returns
-        prices_adj = aligned_data['prices'].copy()
-        dividends_adj = aligned_data['dividends'].copy()
-        splits_adj = aligned_data['splits'].copy()
+        # Calculate returns using proper split adjustment
+        total_returns = pd.Series(index=aligned_data.index, dtype=float)
         
-        # Adjust for stock splits if using unadjusted prices
-        # Note: If prices are already adjusted, splits should be 1.0 or not provided
-        cumulative_split_factor = splits_adj.cumprod()
-        
-        # For each period, calculate total return including corporate actions
-        total_returns = pd.Series(index=prices_adj.index, dtype=float)
-        
-        for i in range(1, len(prices_adj)):
-            curr_date = prices_adj.index[i]
-            prev_date = prices_adj.index[i-1]
-            
+        for i in range(1, len(aligned_data)):
             # Current and previous prices
-            p_curr = prices_adj.iloc[i]
-            p_prev = prices_adj.iloc[i-1]
+            p_curr = aligned_data['prices'].iloc[i]
+            p_prev = aligned_data['prices'].iloc[i-1]
             
-            # Dividend on current date (if any)
-            div_curr = dividends_adj.iloc[i]
+            # Current dividend (per share on current share count)
+            div_curr = aligned_data['dividends'].iloc[i]
             
-            # Split ratio for current period
-            split_curr = splits_adj.iloc[i]
+            # Current split factor
+            split_curr = aligned_data['splits'].iloc[i]
             
             if pd.isna(p_curr) or pd.isna(p_prev) or p_prev <= 0:
                 total_returns.iloc[i] = np.nan
                 continue
             
-            # Calculate total return including all effects
-            # Formula: ((P_t + D_t) * Split_t) / P_{t-1} - 1
-            # Where Split_t adjusts for stock splits
-            total_return = ((p_curr + div_curr) * split_curr) / p_prev - 1
+            # Calculate total return with proper split adjustment
+            # When a split occurs, we need to adjust the previous price
+            # to make it comparable with the current price
+            # For a 2:1 split, the previous price should be divided by 2
+            # to be comparable with the post-split price
+            
+            adjusted_prev_price = p_prev / split_curr
+            
+            # Calculate total return: (current_price + dividend) / adjusted_previous_price - 1
+            total_return = (p_curr + div_curr) / adjusted_prev_price - 1
             total_returns.iloc[i] = total_return
         
         total_returns.name = f"{prices.name}_comprehensive_total_returns" if prices.name else "comprehensive_total_returns"
         
         # Log summary of corporate actions included
-        split_events = len(splits_adj[splits_adj != 1.0]) if splits is not None else 0
-        dividend_events = len(dividends_adj[dividends_adj > 0]) if dividends is not None else 0
+        split_events = len(aligned_data['splits'][aligned_data['splits'] != 1.0])
+        dividend_events = len(aligned_data['dividends'][aligned_data['dividends'] > 0])
         
         logger.info(f"Comprehensive total returns calculated: {dividend_events} dividend events, {split_events} split events")
         

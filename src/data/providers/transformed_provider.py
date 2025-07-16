@@ -44,10 +44,14 @@ class TransformedDataProvider(DataProvider):
         self.config = {
             "inflation_method": "yoy",
             "risk_free_tenor": "3m",
-            "use_adjusted_close": True,
-            "dividend_reinvestment": True,
+            "use_adjusted_close": True,  # When True, dividends are implicit in prices
+            "dividend_reinvestment": True,  # Only applies when use_adjusted_close=False
+            "handle_splits": True,  # Only applies when use_adjusted_close=False
             "lookback_buffer_days": 400  # Extra days for calculations
         }
+        
+        # Validate configuration consistency
+        self._validate_config()
     
     def get_data(
         self,
@@ -210,24 +214,57 @@ class TransformedDataProvider(DataProvider):
         frequency: str,
         **kwargs
     ) -> pd.Series:
-        """Compute total returns including dividends."""
+        """
+        Compute total returns including dividends.
+        
+        Handles adjusted vs unadjusted prices correctly:
+        - If use_adjusted_close=True: dividends are already included in adjusted prices
+        - If use_adjusted_close=False: explicit dividends are added to unadjusted prices
+        """
         # Extend date range to get previous price for return calculation
         extended_start = self._extend_start_date(start, frequency, periods=1)
         
-        # Get prices (use adjusted close if configured)
-        price_type = RawDataType.ADJUSTED_CLOSE if self.config["use_adjusted_close"] else RawDataType.OHLCV
-        prices = self.raw_provider.get_data(price_type, extended_start, end, ticker, frequency)
-        
-        # Get dividends if dividend reinvestment is enabled
-        dividends = None
-        if self.config["dividend_reinvestment"]:
+        if self.config["use_adjusted_close"]:
+            # OPTION A: Use adjusted close (dividends already included)
+            prices = self.raw_provider.get_data(RawDataType.ADJUSTED_CLOSE, extended_start, end, ticker, frequency)
+            
+            # Calculate returns from adjusted prices (no explicit dividends needed)
+            total_returns = self.return_calculator.calculate_simple_returns(prices, frequency)
+            
+            logger.debug(f"Using adjusted close prices for {ticker} - dividends implicitly included")
+            
+        else:
+            # OPTION B: Use unadjusted close with explicit dividends
+            prices = self.raw_provider.get_data(RawDataType.OHLCV, extended_start, end, ticker, frequency)
+            
+            # Get corporate actions
+            dividends = None
+            splits = None
+            
+            if self.config["dividend_reinvestment"]:
+                try:
+                    dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, extended_start, end, ticker, frequency)
+                    logger.debug(f"Retrieved dividend data for {ticker}")
+                except DataNotAvailableError:
+                    logger.debug(f"No dividend data available for {ticker}")
+            
+            # Check if we need to handle splits
             try:
-                dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, extended_start, end, ticker, frequency)
+                splits = self.raw_provider.get_data(RawDataType.SPLIT, extended_start, end, ticker, frequency)
+                logger.debug(f"Retrieved split data for {ticker}")
             except DataNotAvailableError:
-                logger.debug(f"No dividend data available for {ticker}, using price-only returns")
-        
-        # Calculate total returns
-        total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
+                logger.debug(f"No split data available for {ticker}")
+            
+            # Use comprehensive method for unadjusted prices if we have splits
+            if splits is not None and not splits.empty and (splits != 1.0).any():
+                total_returns = self.return_calculator.calculate_comprehensive_total_returns(
+                    prices, dividends, splits
+                )
+                logger.debug(f"Using comprehensive method for {ticker} with splits")
+            else:
+                # No splits, just handle dividends with regular method
+                total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
+                logger.debug(f"Using regular method for {ticker} without splits")
         
         # Trim to requested date range and convert frequency if needed
         total_returns = self._trim_and_convert(total_returns, start, end, frequency, frequency, "return")
@@ -418,6 +455,15 @@ class TransformedDataProvider(DataProvider):
                 return True
         return False
     
+    def _validate_config(self):
+        """Validate configuration consistency."""
+        if self.config["use_adjusted_close"] and self.config.get("explicit_dividends", False):
+            logger.warning("Both use_adjusted_close and explicit_dividends are True - "
+                         "dividends are already in adjusted prices")
+        
+        # Log current configuration for debugging
+        logger.debug(f"TransformedDataProvider configuration: {self.config}")
+    
     def _extend_start_date(self, start: date, frequency: str, periods: int) -> date:
         """Extend start date backward to get enough data for calculations."""
         if frequency.lower() == "daily":
@@ -495,3 +541,109 @@ class TransformedDataProvider(DataProvider):
         result_df = pd.DataFrame(result_data)
         
         return result_df
+    
+    def decompose_returns(
+        self,
+        ticker: str,
+        start: date,
+        end: date,
+        earnings_data: Optional[pd.Series] = None,
+        frequency: str = "daily"
+    ) -> Dict[str, pd.Series]:
+        """
+        Decompose total returns into components.
+        
+        Without earnings data:
+        - Total return = Dividend yield + Price appreciation
+        
+        With earnings data:
+        - Total return = Dividend yield + Earnings growth + P/E change
+        
+        Args:
+            ticker: Stock ticker
+            start: Start date
+            end: End date
+            earnings_data: Optional earnings per share data
+            frequency: Data frequency
+            
+        Returns:
+            Dictionary with return components
+        """
+        # Extend date range for calculations
+        extended_start = self._extend_start_date(start, frequency, periods=1)
+        
+        # Get raw data
+        unadjusted_prices = self.raw_provider.get_data(RawDataType.OHLCV, extended_start, end, ticker, frequency)
+        adjusted_prices = self.raw_provider.get_data(RawDataType.ADJUSTED_CLOSE, extended_start, end, ticker, frequency)
+        
+        try:
+            dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, extended_start, end, ticker, frequency)
+        except DataNotAvailableError:
+            dividends = pd.Series([], dtype=float, name='dividends')
+        
+        # Calculate total returns from adjusted prices
+        total_returns = self.return_calculator.calculate_simple_returns(adjusted_prices, frequency)
+        
+        # Calculate dividend yield (dividends / previous price)
+        dividend_yield = pd.Series(0.0, index=unadjusted_prices.index, name='dividend_yield')
+        
+        if not dividends.empty:
+            # Align dividends with prices
+            for div_date, div_amount in dividends.items():
+                if div_date in unadjusted_prices.index:
+                    # Find previous trading day
+                    price_dates = unadjusted_prices.index
+                    current_idx = price_dates.get_loc(div_date)
+                    if current_idx > 0:
+                        prev_price = unadjusted_prices.iloc[current_idx - 1]
+                        if prev_price > 0:
+                            dividend_yield.loc[div_date] = div_amount / prev_price
+        
+        # Trim to requested date range
+        total_returns = self._trim_and_convert(total_returns, start, end, frequency, frequency, "return")
+        dividend_yield = self._trim_and_convert(dividend_yield, start, end, frequency, frequency, "return")
+        
+        # Calculate price appreciation (total return - dividend yield)
+        price_appreciation = total_returns - dividend_yield
+        price_appreciation.name = 'price_appreciation'
+        
+        result = {
+            'total_return': total_returns,
+            'dividend_yield': dividend_yield,
+            'price_appreciation': price_appreciation
+        }
+        
+        # If earnings data provided, calculate P/E decomposition
+        if earnings_data is not None:
+            # Trim earnings data to same period
+            earnings_trimmed = earnings_data.loc[start:end] if hasattr(earnings_data, 'loc') else earnings_data
+            
+            # Calculate P/E ratios using unadjusted prices
+            unadjusted_trimmed = self._trim_and_convert(unadjusted_prices, start, end, frequency, frequency, "price")
+            
+            # Align earnings with prices
+            aligned_earnings = earnings_trimmed.reindex(unadjusted_trimmed.index, method='ffill')
+            
+            # Calculate P/E ratio
+            pe_ratio = unadjusted_trimmed / aligned_earnings
+            pe_ratio.name = 'pe_ratio'
+            
+            # Calculate earnings growth
+            earnings_growth = aligned_earnings.pct_change()
+            earnings_growth.name = 'earnings_growth'
+            
+            # Calculate P/E change
+            pe_change = pe_ratio.pct_change()
+            pe_change.name = 'pe_change'
+            
+            # Add to result
+            result.update({
+                'earnings_growth': earnings_growth,
+                'pe_change': pe_change,
+                'pe_ratio': pe_ratio
+            })
+            
+            # Recalculate price appreciation to exclude dividends
+            result['price_return_ex_div'] = total_returns - dividend_yield
+        
+        return result

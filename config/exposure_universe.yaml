@@ -104,6 +104,16 @@ exposures:
       - type: "notes"
         description: "Using mutual funds for longer history: Abbey Capital (ABYIX), AlphaSimplex (ASFYX), AQR (AQMNX), Aspect (AHLIX)"
 
+  - id: global_macro
+    name: "Global Macro"
+    description: "Managed futures trend following strategy"
+    category: "alternatives"
+    implementations:
+      - type: "fund_average"
+        tickers: ["QGMIX"]  # Mutual funds with long history
+      - type: "notes"
+        description: "Using mutual fund for longer history: AQR Macro Opportunities Fund (QGMIX)"
+
   # NOMINAL FIXED INCOME EXPOSURES
   - id: cash_rate
     name: "Cash/Risk-Free Rate"

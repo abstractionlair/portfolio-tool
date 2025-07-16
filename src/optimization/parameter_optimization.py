@@ -1276,9 +1276,11 @@ class ParameterOptimizer:
             'optimal_horizon': results['optimal_horizon'],
             f'horizon_{results["optimal_horizon"]}_results': {
                 'goodness_score': optimal_result.goodness_score,
-                'portfolio_rmse': optimal_result.validation_metrics.get('rmse', 0.0),
+                'portfolio_rmse': optimal_result.validation_metrics.get('vol_rmse', 0.0),
+                'return_accuracy': optimal_result.validation_metrics.get('return_accuracy', 0.5),
                 'volatility_parameters': optimal_result.volatility_params,
                 'correlation_parameters': optimal_result.correlation_params,
+                'return_parameters': optimal_result.return_params,
             },
             'horizon_comparison': {}
         }
@@ -1308,6 +1310,7 @@ class ParameterOptimizer:
                 'validation_metrics': optimal_result.validation_metrics,
                 'volatility_params': optimal_result.volatility_params,
                 'correlation_params': optimal_result.correlation_params,
+                'return_params': optimal_result.return_params,
             },
             'all_horizon_results': {},
             'final_estimates': results.get('final_estimates', {})
@@ -1320,6 +1323,7 @@ class ParameterOptimizer:
                 'validation_metrics': result.validation_metrics,
                 'volatility_params': result.volatility_params,
                 'correlation_params': result.correlation_params,
+                'return_params': result.return_params,
             }
         
         json_file = output_dir / "portfolio_level_results.json"

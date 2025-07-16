@@ -10,12 +10,24 @@
 - **Approach**: Implemented sophisticated two-stage optimization framework
 - **Key**: Portfolio-level goodness scoring, per-exposure method selection, 63-day optimal horizon
 
-### 2. Add Fund Exposure Mappings to Existing System
+### 2. Enhanced Equity Return Decomposition
+- **Status**: READY (Task spec: enhanced_equity_decomposition.md)
+- **Priority**: HIGH - Enables sophisticated equity analysis
+- **Approach**: Extend existing decompose_returns method in TransformedDataProvider
+- **Key**: Separate nominal earnings into real components for better time series properties
+
+### 3. Web Interface Development - Phase 1
+- **Status**: READY (Task spec: web_interface_phase1.md)
+- **Priority**: HIGH - Makes optimizer accessible
+- **Approach**: FastAPI wrapper around existing functionality
+- **Key**: Thin API layer, no business logic duplication
+
+### 4. Add Fund Exposure Mappings to Existing System
 - **Status**: READY (Task spec: add_fund_exposure_mappings.md)
 - **Approach**: Extend existing exposures.py and portfolio.py
 - **Key**: Use existing ReturnReplicator for validation
 
-### 3. Enable Exposure-Level Optimization in Existing Engine
+### 5. Enable Exposure-Level Optimization in Existing Engine
 - **Status**: READY (Task spec: enable_exposure_optimization.md)
 - **Approach**: Create adapter for existing OptimizationEngine
 - **Key**: The engine already works - just feed it exposure data

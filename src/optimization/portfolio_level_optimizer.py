@@ -28,6 +28,7 @@ class HorizonOptimizationResult:
     horizon: int
     volatility_params: Dict[str, Dict]  # Per-exposure vol params
     correlation_params: Dict  # Global correlation params
+    return_params: Dict[str, Dict]  # Per-exposure return params
     goodness_score: float
     validation_metrics: Dict
 
@@ -134,10 +135,16 @@ class PortfolioLevelOptimizer:
             horizon, volatility_params, start_date, end_date
         )
         
-        # Step 3: Compute goodness score using test portfolios
+        # Step 3: Optimize return prediction parameters
+        logger.info(f"Optimizing return prediction parameters for {horizon}-day horizon...")
+        return_params = self._optimize_returns_for_horizon(
+            horizon, volatility_params, start_date, end_date
+        )
+        
+        # Step 4: Compute goodness score using test portfolios
         logger.info(f"Computing goodness score using {len(test_portfolios)} portfolios...")
         goodness_score, validation_metrics = self._compute_goodness_score(
-            horizon, volatility_params, correlation_params,
+            horizon, volatility_params, correlation_params, return_params,
             test_portfolios, start_date, end_date
         )
         
@@ -145,6 +152,7 @@ class PortfolioLevelOptimizer:
             horizon=horizon,
             volatility_params=volatility_params,
             correlation_params=correlation_params,
+            return_params=return_params,
             goodness_score=goodness_score,
             validation_metrics=validation_metrics
         )
@@ -456,12 +464,13 @@ class PortfolioLevelOptimizer:
         horizon: int,
         volatility_params: Dict,
         correlation_params: Dict,
+        return_params: Dict,
         test_portfolios: List[Dict[str, float]],
         start_date: datetime,
         end_date: datetime
     ) -> Tuple[float, Dict]:
         """
-        Compute portfolio-level goodness score.
+        Compute portfolio-level goodness score including return prediction accuracy.
         This is the key innovation: we measure how well the parameters
         predict portfolio-level risk, not just individual asset risk.
         """
@@ -537,26 +546,58 @@ class PortfolioLevelOptimizer:
                     test_data
                 )
                 
-                if predicted_vol is not None and realized_vol is not None:
-                    # Squared error
-                    error = (predicted_vol - realized_vol) ** 2
-                    portfolio_scores.append(error)
+                # Predict portfolio return
+                predicted_return = self._predict_portfolio_return(
+                    filtered_weights,
+                    return_params,
+                    train_data,
+                    horizon
+                )
+                
+                # Calculate realized portfolio return
+                realized_return = self._calculate_realized_portfolio_return(
+                    filtered_weights,
+                    test_data
+                )
+                
+                if predicted_vol is not None and realized_vol is not None and predicted_return is not None and realized_return is not None:
+                    # Volatility prediction error (MSE)
+                    vol_error = (predicted_vol - realized_vol) ** 2
+                    
+                    # Return prediction accuracy (directional accuracy)
+                    return_accuracy = self._calculate_directional_accuracy(
+                        predicted_return, realized_return
+                    )
+                    
+                    # Combined score: 70% volatility accuracy, 30% return accuracy
+                    # (lower vol_error is better, higher return_accuracy is better)
+                    combined_score = -0.7 * vol_error + 0.3 * return_accuracy
+                    portfolio_scores.append(combined_score)
                     
                     detailed_metrics.append({
                         'test_period': i,
                         'portfolio': filtered_weights,
                         'predicted_vol': predicted_vol,
                         'realized_vol': realized_vol,
-                        'error': error
+                        'predicted_return': predicted_return,
+                        'realized_return': realized_return,
+                        'vol_error': vol_error,
+                        'return_accuracy': return_accuracy,
+                        'combined_score': combined_score
                     })
         
-        # Goodness = negative MSE (higher is better)
+        # Goodness = average combined score (higher is better)
         if portfolio_scores:
-            goodness = -np.mean(portfolio_scores)
+            goodness = np.mean(portfolio_scores)
+            
+            # Calculate separate metrics for volatility and return prediction
+            vol_errors = [m['vol_error'] for m in detailed_metrics if 'vol_error' in m]
+            return_accuracies = [m['return_accuracy'] for m in detailed_metrics if 'return_accuracy' in m]
             
             validation_metrics = {
-                'mse': np.mean(portfolio_scores),
-                'rmse': np.sqrt(np.mean(portfolio_scores)),
+                'combined_score': goodness,
+                'vol_rmse': np.sqrt(np.mean(vol_errors)) if vol_errors else None,
+                'return_accuracy': np.mean(return_accuracies) if return_accuracies else None,
                 'n_tests': len(portfolio_scores),
                 'detailed_metrics': detailed_metrics[:10]  # Save first 10 for analysis
             }
@@ -732,6 +773,73 @@ class PortfolioLevelOptimizer:
             logger.debug(f"Failed to calculate realized portfolio volatility: {e}")
             return None
     
+    def _predict_portfolio_return(
+        self,
+        weights: Dict[str, float],
+        return_params: Dict,
+        train_data: pd.DataFrame,
+        horizon: int
+    ) -> Optional[float]:
+        """Predict portfolio return using individual return predictions."""
+        
+        try:
+            exposures = list(weights.keys())
+            return_predictions = {}
+            
+            # Get individual return predictions
+            for exp_id in exposures:
+                if exp_id in return_params and exp_id in train_data.columns:
+                    params = return_params[exp_id]
+                    predicted_return = self._estimate_expected_return(
+                        train_data[exp_id],
+                        params['method'],
+                        params['parameters']
+                    )
+                    if not pd.isna(predicted_return):
+                        return_predictions[exp_id] = predicted_return
+            
+            if len(return_predictions) < len(exposures):
+                return None
+            
+            # Calculate portfolio return as weighted average
+            portfolio_return = sum(
+                weights[exp] * return_predictions[exp]
+                for exp in exposures
+            )
+            
+            return portfolio_return
+            
+        except Exception as e:
+            logger.debug(f"Failed to predict portfolio return: {e}")
+            return None
+    
+    def _calculate_realized_portfolio_return(
+        self,
+        weights: Dict[str, float],
+        returns_data: pd.DataFrame
+    ) -> Optional[float]:
+        """Calculate realized portfolio return over the test period."""
+        
+        try:
+            # Calculate portfolio returns
+            exposures = list(weights.keys())
+            available_data = returns_data[exposures].dropna()
+            
+            if len(available_data) == 0:
+                return None
+            
+            weight_vector = np.array([weights[exp] for exp in exposures])
+            portfolio_returns = available_data.values @ weight_vector
+            
+            # Calculate average return
+            portfolio_return = np.mean(portfolio_returns)
+            
+            return portfolio_return
+            
+        except Exception as e:
+            logger.debug(f"Failed to calculate realized portfolio return: {e}")
+            return None
+    
     def _get_default_test_portfolios(self) -> List[Dict[str, float]]:
         """Generate test portfolios for goodness evaluation."""
         
@@ -769,6 +877,275 @@ class PortfolioLevelOptimizer:
         
         logger.info(f"Created {len(test_portfolios)} test portfolios")
         return test_portfolios
+    
+    def _optimize_returns_for_horizon(
+        self,
+        horizon: int,
+        volatility_params: Dict,
+        start_date: datetime,
+        end_date: datetime
+    ) -> Dict[str, Dict]:
+        """
+        Optimize return prediction parameters for each exposure.
+        """
+        
+        exposures = list(volatility_params.keys())
+        return_params = {}
+        
+        logger.info(f"Optimizing returns for {len(exposures)} exposures")
+        
+        # Return prediction methods to test
+        methods = ['historical', 'ewma', 'momentum', 'mean_reversion']
+        
+        for exp_id in exposures:
+            logger.debug(f"Optimizing returns for {exp_id}")
+            
+            try:
+                # Get exposure data
+                returns, _ = self.fetcher.fetch_returns_for_exposure(
+                    self.universe.exposures[exp_id],
+                    start_date=start_date,
+                    end_date=end_date,
+                    frequency='daily'
+                )
+                
+                if returns is None or len(returns) < 252:
+                    logger.warning(f"Insufficient data for {exp_id}, using fallback")
+                    return_params[exp_id] = self._get_fallback_return_params(horizon)
+                    continue
+                
+                # Test different return prediction methods
+                best_score = -float('inf')  # Higher directional accuracy is better
+                best_method = None
+                best_params = None
+                
+                for method in methods:
+                    try:
+                        if method == 'historical':
+                            param_grid = {
+                                'lookback_days': [126, 252, 504],
+                                'min_periods': [30, 60]
+                            }
+                        elif method == 'ewma':
+                            param_grid = {
+                                'decay_factor': [0.90, 0.95, 0.99],
+                                'lookback_days': [252, 504],
+                                'min_periods': [30, 60]
+                            }
+                        elif method == 'momentum':
+                            param_grid = {
+                                'momentum_period': [3, 6, 12],
+                                'momentum_strength': [0.2, 0.5, 0.8],
+                                'lookback_days': [252, 504],
+                                'min_periods': [30, 60]
+                            }
+                        elif method == 'mean_reversion':
+                            param_grid = {
+                                'recent_period': [3, 6, 12],
+                                'reversion_strength': [0.1, 0.3, 0.5],
+                                'lookback_days': [252, 504],
+                                'min_periods': [30, 60]
+                            }
+                        
+                        # Grid search for this method
+                        method_score, method_params = self._grid_search_returns(
+                            exp_id, method, param_grid, horizon, returns
+                        )
+                        
+                        if method_score > best_score:
+                            best_score = method_score
+                            best_method = method
+                            best_params = method_params
+                            
+                    except Exception as e:
+                        logger.debug(f"Method {method} failed for {exp_id}: {e}")
+                        continue
+                
+                if best_method is None:
+                    logger.warning(f"No method worked for {exp_id}, using fallback")
+                    return_params[exp_id] = self._get_fallback_return_params(horizon)
+                else:
+                    return_params[exp_id] = {
+                        'method': best_method,
+                        'parameters': best_params,
+                        'horizon': horizon,
+                        'validation_score': best_score
+                    }
+                    
+                    logger.debug(f"  Best for {exp_id}: {best_method} (score: {best_score:.3f})")
+                
+            except Exception as e:
+                logger.warning(f"Failed to optimize returns for {exp_id}: {e}")
+                return_params[exp_id] = self._get_fallback_return_params(horizon)
+        
+        return return_params
+    
+    def _grid_search_returns(
+        self,
+        exp_id: str,
+        method: str,
+        param_grid: Dict,
+        horizon: int,
+        returns: pd.Series
+    ) -> Tuple[float, Dict]:
+        """Grid search for best return prediction parameters."""
+        
+        best_score = -float('inf')
+        best_params = None
+        
+        # Generate all parameter combinations
+        param_combinations = []
+        keys = list(param_grid.keys())
+        values = list(param_grid.values())
+        
+        for combination in product(*values):
+            param_dict = dict(zip(keys, combination))
+            param_combinations.append(param_dict)
+        
+        # Test each combination with walk-forward validation
+        for params in param_combinations:
+            try:
+                score = self._validate_return_params(
+                    method, params, horizon, returns
+                )
+                
+                if score > best_score:
+                    best_score = score
+                    best_params = params
+                    
+            except Exception as e:
+                logger.debug(f"Parameter combination failed for {exp_id}: {params}, error: {e}")
+                continue
+        
+        return best_score, best_params
+    
+    def _validate_return_params(
+        self,
+        method: str,
+        params: Dict,
+        horizon: int,
+        returns: pd.Series
+    ) -> float:
+        """Validate return prediction parameters using walk-forward validation."""
+        
+        min_train_periods = max(params.get('lookback_days', 252), 100)
+        test_periods = 30
+        
+        if len(returns) < min_train_periods + horizon + test_periods:
+            return -float('inf')
+        
+        directional_accuracies = []
+        
+        # Walk-forward validation
+        for i in range(min_train_periods, len(returns) - horizon - test_periods, horizon):
+            train_data = returns.iloc[i-min_train_periods:i]
+            
+            # Predict expected return using the method
+            predicted_return = self._estimate_expected_return(train_data, method, params)
+            
+            if pd.isna(predicted_return):
+                continue
+            
+            # Calculate actual return over horizon
+            future_data = returns.iloc[i:i+horizon]
+            if len(future_data) == horizon:
+                actual_return = future_data.mean()
+                
+                # Calculate directional accuracy
+                if not pd.isna(actual_return):
+                    directional_accuracy = self._calculate_directional_accuracy(
+                        predicted_return, actual_return
+                    )
+                    directional_accuracies.append(directional_accuracy)
+        
+        if len(directional_accuracies) == 0:
+            return -float('inf')
+        
+        return np.mean(directional_accuracies)
+    
+    def _estimate_expected_return(
+        self,
+        returns: pd.Series,
+        method: str,
+        params: Dict
+    ) -> float:
+        """Estimate expected return using specified method and parameters."""
+        
+        if returns.empty or len(returns) < 5:
+            return np.nan
+        
+        try:
+            if method == 'historical':
+                # Simple historical average
+                return returns.mean()
+                
+            elif method == 'ewma':
+                # Exponentially weighted moving average
+                decay_factor = params.get('decay_factor', 0.97)
+                weights = np.array([decay_factor ** i for i in range(len(returns))][::-1])
+                weights = weights / weights.sum()
+                return np.dot(returns.values, weights)
+                
+            elif method == 'momentum':
+                # Momentum-based prediction
+                momentum_period = params.get('momentum_period', 12)
+                if len(returns) < momentum_period:
+                    return returns.mean()
+                
+                recent_returns = returns.iloc[-momentum_period:]
+                momentum_signal = recent_returns.mean()
+                
+                # Scale momentum signal
+                momentum_strength = params.get('momentum_strength', 0.5)
+                base_return = returns.mean()
+                return base_return + momentum_strength * momentum_signal
+                
+            elif method == 'mean_reversion':
+                # Mean reversion model
+                long_term_mean = returns.mean()
+                recent_period = params.get('recent_period', 6)
+                
+                if len(returns) < recent_period:
+                    return long_term_mean
+                
+                recent_mean = returns.iloc[-recent_period:].mean()
+                reversion_strength = params.get('reversion_strength', 0.3)
+                
+                # Expect reversion toward long-term mean
+                return long_term_mean + reversion_strength * (long_term_mean - recent_mean)
+                
+            else:
+                # Default to historical mean
+                return returns.mean()
+                
+        except Exception:
+            return np.nan
+    
+    def _calculate_directional_accuracy(self, prediction: float, actual: float) -> float:
+        """Calculate directional accuracy of prediction."""
+        
+        if np.isnan(prediction) or np.isnan(actual):
+            return np.nan
+        
+        # Handle case where prediction or actual is near zero
+        threshold = 1e-6
+        if abs(prediction) < threshold or abs(actual) < threshold:
+            return 0.5
+        
+        # Check if signs match
+        return 1.0 if (prediction > 0) == (actual > 0) else 0.0
+    
+    def _get_fallback_return_params(self, horizon: int) -> Dict:
+        """Get fallback parameters when return optimization fails."""
+        return {
+            'method': 'historical',
+            'parameters': {
+                'lookback_days': 252,
+                'min_periods': 60
+            },
+            'horizon': horizon,
+            'validation_score': 0.5  # 50% directional accuracy
+        }
     
     def _get_fallback_volatility_params(self, horizon: int) -> Dict:
         """Get fallback parameters when optimization fails."""
