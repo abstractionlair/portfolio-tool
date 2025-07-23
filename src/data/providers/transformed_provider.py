@@ -354,6 +354,16 @@ class TransformedDataProvider(DataProvider):
             except DataNotAvailableError:
                 raise DataNotAvailableError("No price index data available for inflation calculation")
         
+        # Convert annualized inflation rates to daily rates for consistency with return components
+        # YoY inflation is computed as annualized rates, but return components are daily changes
+        if frequency.lower() == "daily":
+            inflation = inflation / 252
+        elif frequency.lower() == "monthly":
+            inflation = inflation / 12
+        elif frequency.lower() == "quarterly":
+            inflation = inflation / 4
+        # Annual rates stay as-is
+        
         return self._trim_and_convert(inflation, start, end, frequency, frequency, "rate")
     
     def _compute_nominal_risk_free(
@@ -388,6 +398,16 @@ class TransformedDataProvider(DataProvider):
         
         # Select the best available rate
         risk_free_rate = self.economic_calculator.select_risk_free_rate(available_rates, tenor)
+        
+        # Convert annualized Treasury rates to daily rates for consistency with return components
+        # Treasury rates are provided as annualized rates, but return components are daily changes
+        if frequency.lower() == "daily":
+            risk_free_rate = risk_free_rate / 252
+        elif frequency.lower() == "monthly":
+            risk_free_rate = risk_free_rate / 12
+        elif frequency.lower() == "quarterly":
+            risk_free_rate = risk_free_rate / 4
+        # Annual rates stay as-is
         
         return self._trim_and_convert(risk_free_rate, start, end, frequency, frequency, "rate")
     
@@ -621,8 +641,13 @@ class TransformedDataProvider(DataProvider):
             # Calculate P/E ratios using unadjusted prices
             unadjusted_trimmed = self._trim_and_convert(unadjusted_prices, start, end, frequency, frequency, "price")
             
-            # Align earnings with prices
-            aligned_earnings = earnings_trimmed.reindex(unadjusted_trimmed.index, method='ffill')
+            # Align earnings with prices - handle timezone issues
+            if hasattr(unadjusted_trimmed.index, 'tz') and unadjusted_trimmed.index.tz is not None:
+                # If price data has timezone info, localize earnings data
+                if not hasattr(earnings_trimmed.index, 'tz') or earnings_trimmed.index.tz is None:
+                    earnings_trimmed.index = earnings_trimmed.index.tz_localize(unadjusted_trimmed.index.tz)
+            
+            aligned_earnings = earnings_trimmed.reindex(unadjusted_trimmed.index).ffill()
             
             # Calculate P/E ratio
             pe_ratio = unadjusted_trimmed / aligned_earnings
@@ -645,5 +670,218 @@ class TransformedDataProvider(DataProvider):
             
             # Recalculate price appreciation to exclude dividends
             result['price_return_ex_div'] = total_returns - dividend_yield
+        
+        return result
+    
+    def decompose_equity_returns(
+        self,
+        ticker: str,
+        start: date,
+        end: date,
+        earnings_data: pd.Series,
+        frequency: str = "daily",
+        inflation_measure: str = "CPI",
+        rf_tenor: str = "3M"
+    ) -> Dict[str, pd.Series]:
+        """
+        Decompose equity returns into economically meaningful components.
+        
+        This method separates total returns into components that have different
+        economic interpretations and time series properties:
+        
+        - Dividend yield: Income component
+        - P/E change: Multiple expansion/contraction  
+        - Real earnings excess: Real earnings growth above real risk-free rate
+        
+        The key insight is that earnings growth needs to be adjusted for inflation
+        and the real risk-free rate to get the true risk premium component.
+        
+        Args:
+            ticker: Stock ticker
+            start: Start date
+            end: End date
+            earnings_data: Earnings per share data (aligned with dates)
+            frequency: Data frequency
+            inflation_measure: Inflation measure to use ("CPI", "PCE")
+            rf_tenor: Risk-free rate tenor ("3M", "6M", "1Y")
+            
+        Returns:
+            Dictionary with return components:
+            - nominal_return: Total nominal return
+            - dividend_yield: Dividend yield component
+            - pe_change: P/E multiple change component  
+            - nominal_earnings_growth: Earnings growth in nominal terms
+            - real_earnings_growth: Earnings growth adjusted for inflation
+            - real_earnings_excess: Real earnings growth above real risk-free rate
+            - inflation: Inflation rate over period
+            - nominal_rf: Nominal risk-free rate
+            - real_rf: Real risk-free rate
+            - real_risk_premium: Total real risk premium
+            - excess_return: Nominal return minus nominal risk-free rate
+        """
+        # Get base decomposition with earnings
+        base_decomp = self.decompose_returns(
+            ticker=ticker,
+            start=start,
+            end=end,
+            earnings_data=earnings_data,
+            frequency=frequency
+        )
+        
+        # Get economic data
+        economic_data = self._get_economic_data_for_decomposition(
+            start=start,
+            end=end,
+            frequency=frequency,
+            inflation_measure=inflation_measure,
+            rf_tenor=rf_tenor
+        )
+        
+        # Align all data
+        aligned_data = self._align_decomposition_data(
+            base_decomp=base_decomp,
+            economic_data=economic_data,
+            frequency=frequency
+        )
+        
+        # Calculate real components
+        final_data = self._calculate_real_components(aligned_data)
+        
+        # Convert back to series dictionary
+        result = {}
+        for col in final_data.columns:
+            result[col] = final_data[col].copy()
+            result[col].name = col
+        
+        return result
+    
+    def _get_economic_data_for_decomposition(
+        self,
+        start: date,
+        end: date,
+        frequency: str,
+        inflation_measure: str = "CPI",
+        rf_tenor: str = "3M"
+    ) -> Dict[str, pd.Series]:
+        """Fetch and align economic data needed for decomposition."""
+        
+        # Get inflation rate
+        inflation = self._compute_inflation_rate(start, end, frequency)
+        
+        # Get nominal risk-free rate
+        nominal_rf = self._compute_nominal_risk_free(start, end, frequency, tenor=rf_tenor)
+        
+        # Get real risk-free rate
+        real_rf = self._compute_real_risk_free(start, end, frequency, tenor=rf_tenor)
+        
+        return {
+            'inflation': inflation,
+            'nominal_rf': nominal_rf,
+            'real_rf': real_rf
+        }
+    
+    def _align_decomposition_data(
+        self,
+        base_decomp: Dict[str, pd.Series],
+        economic_data: Dict[str, pd.Series],
+        frequency: str
+    ) -> pd.DataFrame:
+        """Align all data series for consistent calculation."""
+        
+        # Combine all data
+        all_data = {}
+        all_data.update(base_decomp)
+        
+        # Handle timezone differences between base and economic data
+        if base_decomp and economic_data:
+            # Get a representative series from base decomposition
+            base_series = next(iter(base_decomp.values()))
+            
+            # Check if base data has timezone info
+            if hasattr(base_series.index, 'tz') and base_series.index.tz is not None:
+                # If base data has timezone, localize economic data
+                for key, series in economic_data.items():
+                    if not hasattr(series.index, 'tz') or series.index.tz is None:
+                        series.index = series.index.tz_localize(base_series.index.tz)
+                    all_data[key] = series
+            else:
+                # If base data has no timezone, remove timezone from economic data
+                for key, series in economic_data.items():
+                    if hasattr(series.index, 'tz') and series.index.tz is not None:
+                        series.index = series.index.tz_localize(None)
+                    all_data[key] = series
+        else:
+            all_data.update(economic_data)
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(all_data)
+        
+        # Rename columns for clarity
+        if 'total_return' in df.columns:
+            df['nominal_return'] = df['total_return']
+        if 'earnings_growth' in df.columns:
+            df['nominal_earnings_growth'] = df['earnings_growth']
+        
+        # Forward fill economic data (rates don't change daily)
+        # Also backward fill to handle cases where economic data starts later in the period
+        for col in ['inflation', 'nominal_rf', 'real_rf']:
+            if col in df.columns:
+                df[col] = df[col].ffill().bfill()
+        
+        # Drop rows with NaN in critical columns (including economic data for real calculations)
+        # Use total_return if nominal_return doesn't exist yet
+        critical_cols = ['dividend_yield', 'nominal_earnings_growth', 'pe_change', 'inflation', 'real_rf']
+        if 'nominal_return' in df.columns:
+            critical_cols.append('nominal_return')
+        elif 'total_return' in df.columns:
+            critical_cols.append('total_return')
+        
+        df = df.dropna(subset=[col for col in critical_cols if col in df.columns])
+        
+        return df
+    
+    def _calculate_real_components(self, aligned_data: pd.DataFrame) -> pd.DataFrame:
+        """Calculate real risk premium components."""
+        
+        result = aligned_data.copy()
+        
+        # Real earnings growth (adjust for inflation)
+        result['real_earnings_growth'] = result['nominal_earnings_growth'] - result['inflation']
+        
+        # Real earnings excess (real earnings growth above real risk-free rate)
+        result['real_earnings_excess'] = result['real_earnings_growth'] - result['real_rf']
+        
+        # Total real risk premium (sum of real components)
+        # Key insight: dividend yield and P/E change are already "real" ratios
+        result['real_risk_premium'] = (
+            result['dividend_yield'] + 
+            result['pe_change'] + 
+            result['real_earnings_excess']
+        )
+        
+        # Excess return (nominal return minus nominal risk-free rate)
+        result['excess_return'] = result['nominal_return'] - result['nominal_rf']
+        
+        # Verification: alternative calculation of real risk premium
+        # Should equal: nominal return - inflation - real risk-free rate
+        result['real_risk_premium_check'] = (
+            result['nominal_return'] - result['inflation'] - result['real_rf']
+        )
+        
+        # Decomposition quality check
+        result['decomp_error'] = abs(
+            result['real_risk_premium'] - result['real_risk_premium_check']
+        )
+        
+        # Identity check: nominal return should equal sum of components
+        result['identity_check'] = (
+            result['dividend_yield'] + 
+            result['pe_change'] + 
+            result['nominal_earnings_growth']
+        )
+        
+        result['identity_error'] = abs(
+            result['nominal_return'] - result['identity_check']
+        )
         
         return result

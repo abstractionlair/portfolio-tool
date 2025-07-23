@@ -309,12 +309,36 @@ class YFinanceProvider(RawDataProvider):
                 )
             
             # Filter to date range and reindex to daily
-            dividends = dividends[(dividends.index.date >= start) & 
-                                 (dividends.index.date <= end)]
+            # Convert start and end to pandas Timestamp for proper comparison
+            start_ts = pd.Timestamp(start)
+            end_ts = pd.Timestamp(end)
+            
+            # Handle timezone-aware dividend index
+            if dividends.index.tz is not None:
+                # Localize start and end timestamps to match dividend index timezone
+                start_ts = start_ts.tz_localize(dividends.index.tz)
+                end_ts = end_ts.tz_localize(dividends.index.tz)
+            
+            # Debug: Print filtering info
+            logger.debug(f"Filtering dividends for {ticker}: {len(dividends)} before, start={start_ts}, end={end_ts}")
+            
+            dividends = dividends[(dividends.index >= start_ts) & 
+                                 (dividends.index <= end_ts)]
+            
+            logger.debug(f"Filtering dividends for {ticker}: {len(dividends)} after, sum=${dividends.sum():.2f}")
             
             # Reindex to daily frequency, filling with zeros
             daily_index = pd.date_range(start, end, freq='D')
+            logger.debug(f"Reindexing dividends for {ticker}: daily_index has {len(daily_index)} days")
+            
+            # Ensure proper timezone handling for reindexing
+            if dividends.index.tz is not None and daily_index.tz is None:
+                daily_index = daily_index.tz_localize(dividends.index.tz)
+            elif dividends.index.tz is None and daily_index.tz is not None:
+                daily_index = daily_index.tz_localize(None)
+            
             series = dividends.reindex(daily_index, fill_value=0.0)
+            logger.debug(f"Final dividend series for {ticker}: {len(series)} days, sum=${series.sum():.2f}")
             
         elif data_type == RawDataType.SPLIT:
             # Get stock split data

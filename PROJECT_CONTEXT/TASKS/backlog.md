@@ -11,12 +11,18 @@
 - **Key**: Portfolio-level goodness scoring, per-exposure method selection, 63-day optimal horizon
 
 ### 2. Enhanced Equity Return Decomposition
-- **Status**: READY (Task spec: enhanced_equity_decomposition.md)
+- **Status**: IN PROGRESS (Current Task)
 - **Priority**: HIGH - Enables sophisticated equity analysis
 - **Approach**: Extend existing decompose_returns method in TransformedDataProvider
 - **Key**: Separate nominal earnings into real components for better time series properties
 
-### 3. Web Interface Development - Phase 1
+### 3. Implement Correct Rate Compounding
+- **Status**: READY (Task spec: implement_correct_rate_compounding.md)
+- **Priority**: MEDIUM - Mathematical accuracy improvement
+- **Approach**: Add RateConverter to calculators, update rate transformations
+- **Key**: Use (1+r)^(1/n)-1 instead of r/n for rate conversions
+
+### 4. Web Interface Development - Phase 1
 - **Status**: READY (Task spec: web_interface_phase1.md)
 - **Priority**: HIGH - Makes optimizer accessible
 - **Approach**: FastAPI wrapper around existing functionality

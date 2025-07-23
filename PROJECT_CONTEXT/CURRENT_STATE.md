@@ -258,3 +258,36 @@ portfolio-optimizer/
 5. **Advanced Features** - Real-time rebalancing, risk monitoring, performance attribution using validated parameters
 
 The **portfolio-level optimization system** is now production-ready with sophisticated two-stage parameter selection that optimizes for actual portfolio prediction accuracy. The system features per-exposure method selection, walk-forward validation, and demonstrates optimal 189-day horizon with 0.08% portfolio RMSE. Advanced visualization system provides comprehensive analysis with 10 different plot types showing optimization performance, risk estimates, parameter effectiveness, and final volatilities/correlations computed using optimal parameters - a significant advancement over traditional single-horizon approaches.
+
+## Current Task: Enhanced Equity Return Decomposition
+
+**Status**: IN PROGRESS  
+**Priority**: HIGH  
+**Task File**: `/PROJECT_CONTEXT/TASKS/current_task.md`  
+**Started**: 2025-07-16
+
+### Why This Task Now?
+
+With the dividend double-counting bug fixed, we can now build sophisticated equity analysis on a solid foundation:
+- **Economic Insight**: Separates nominal earnings growth into real components
+- **Better Time Series Properties**: Each component has different statistical characteristics
+- **Forecasting Foundation**: Components are more amenable to different modeling approaches
+- **Builds on Fixed Data**: Uses the corrected return calculations
+
+### Task Scope
+
+**Implementation Goal**: Enhanced equity return decomposition in data layer
+- Decompose returns into dividend yield, P/E change, and real earnings excess
+- Properly adjust earnings growth for inflation and real risk-free rate
+- Integrate with existing economic data (inflation, risk-free rates)
+- Ensure all components align and sum correctly
+
+**Key Formula**:
+```
+r_real_risk_premium = r_dividend + r_pe_change + r_real_earnings_excess
+
+where:
+r_real_earnings_excess = r_nominal_earnings - r_inflation - r_real_rf
+```
+
+This enhancement will provide a powerful foundation for understanding and forecasting equity returns with economically meaningful components.

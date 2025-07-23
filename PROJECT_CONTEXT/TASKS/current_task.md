@@ -1,355 +1,406 @@
-# Task: Fix Dividend Double-Counting in Total Returns
+# Task: Implement Enhanced Equity Return Decomposition in Data Layer
 
-**Status**: COMPLETED ✅  
+**Status**: READY  
 **Priority**: HIGH  
-**Type**: Bug Fix  
-**Completed**: 2025-07-16
+**Type**: Feature Implementation  
+**Estimated Time**: 3-4 hours
+**Dependencies**: Dividend double-counting fix (COMPLETE)
 
-## Problem Statement
+## Overview
 
-The current implementation of total returns may be double-counting dividends:
+Implement an enhanced equity return decomposition that properly separates real risk premium components. This builds on the basic return decomposition by adjusting earnings growth for inflation and the real risk-free rate.
 
-1. **Adjusted Close Already Includes Dividends**: When using `RawDataType.ADJUSTED_CLOSE` (default), the price series from yfinance already includes dividend adjustments
-2. **Code Adds Dividends Again**: The `_compute_total_returns` method fetches dividends separately and adds them to the adjusted prices
-3. **Result**: Dividends are counted twice, inflating total returns
+## Economic Framework
 
-## Current Implementation Issues
+The decomposition follows this logic:
 
-### In `transformed_provider.py`:
-```python
-def _compute_total_returns(self, ...):
-    # Gets adjusted close (already includes dividends)
-    price_type = RawDataType.ADJUSTED_CLOSE if self.config["use_adjusted_close"] else RawDataType.OHLCV
-    prices = self.raw_provider.get_data(price_type, ...)
-    
-    # Then tries to add dividends again!
-    if self.config["dividend_reinvestment"]:
-        dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, ...)
-    
-    # This could double-count dividends
-    total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
+```
+r_nominal = r_dividend + r_pe_change + r_nominal_earnings
+
+r_real_risk_premium = r_nominal - r_inflation - r_real_rf
+                    = r_dividend + r_pe_change + r_real_earnings_excess
+
+where:
+r_real_earnings_excess = r_nominal_earnings - r_inflation - r_real_rf
 ```
 
-### In `return_calculator.py`:
-The `calculate_comprehensive_total_returns` method exists but isn't used. Need to verify if it's correct.
+Key insight: Dividend yield and P/E changes are already "real" ratios, but earnings growth is in currency units and needs adjustment.
 
-## Solution Design
+## Implementation Design
 
-### 1. Fix the Logic Flow
-
-```python
-def _compute_total_returns(self, start: date, end: date, ticker: str, frequency: str, **kwargs) -> pd.Series:
-    """Compute total returns with proper dividend handling."""
-    extended_start = self._extend_start_date(start, frequency, periods=1)
-    
-    if self.config["use_adjusted_close"]:
-        # OPTION A: Use adjusted close (dividends already included)
-        prices = self.raw_provider.get_data(RawDataType.ADJUSTED_CLOSE, extended_start, end, ticker, frequency)
-        
-        # Calculate returns from adjusted prices (no explicit dividends needed)
-        total_returns = self.return_calculator.calculate_simple_returns(prices, frequency)
-        
-        logger.debug(f"Using adjusted close prices for {ticker} - dividends implicitly included")
-        
-    else:
-        # OPTION B: Use unadjusted close with explicit dividends
-        prices = self.raw_provider.get_data(RawDataType.OHLCV, extended_start, end, ticker, frequency)
-        
-        # Get corporate actions
-        dividends = None
-        splits = None
-        
-        if self.config["dividend_reinvestment"]:
-            try:
-                dividends = self.raw_provider.get_data(RawDataType.DIVIDEND, extended_start, end, ticker, frequency)
-            except DataNotAvailableError:
-                logger.debug(f"No dividend data available for {ticker}")
-        
-        try:
-            splits = self.raw_provider.get_data(RawDataType.SPLIT, extended_start, end, ticker, frequency)
-        except DataNotAvailableError:
-            logger.debug(f"No split data available for {ticker}")
-        
-        # Use comprehensive method for unadjusted prices
-        if splits is not None and not splits.empty:
-            total_returns = self.return_calculator.calculate_comprehensive_total_returns(
-                prices, dividends, splits
-            )
-        else:
-            # No splits, just handle dividends
-            total_returns = self.return_calculator.calculate_total_returns(prices, dividends)
-        
-        logger.debug(f"Using unadjusted prices for {ticker} with explicit dividends/splits")
-    
-    # Trim to requested date range
-    return self._trim_and_convert(total_returns, start, end, frequency, frequency, "return")
-```
-
-### 2. Update Configuration
-
-Make the configuration more explicit:
+### 1. New Method in TransformedDataProvider
 
 ```python
-# In TransformedDataProvider.__init__
-self.config = {
-    "use_adjusted_close": True,  # When True, dividends are implicit
-    "dividend_reinvestment": True,  # Only applies when use_adjusted_close=False
-    "handle_splits": True,  # Only applies when use_adjusted_close=False
-    # ... other config
-}
-```
-
-### 3. Add Configuration Validation
-
-```python
-def _validate_config(self):
-    """Validate configuration consistency."""
-    if self.config["use_adjusted_close"] and self.config.get("explicit_dividends", False):
-        logger.warning("Both use_adjusted_close and explicit_dividends are True - "
-                      "dividends are already in adjusted prices")
-```
-
-## Verification of Comprehensive Method
-
-Need to verify `calculate_comprehensive_total_returns` handles:
-
-1. **Split Adjustment**: Ensure splits are applied correctly
-   - Forward-adjust share counts
-   - Backward-adjust prices
-   - Verify split ratio direction (2.0 = 2:1 split)
-
-2. **Dividend Timing**: Ensure dividends are added on ex-dividend date
-
-3. **Order of Operations**: 
-   - Apply splits first (affects share count)
-   - Then add dividends (per share)
-   - Then calculate returns
-
-### ISSUE FOUND IN COMPREHENSIVE METHOD
-
-The current implementation has a **critical bug** in split handling:
-
-```python
-# Current incorrect formula:
-total_return = ((p_curr + div_curr) * split_curr) / p_prev - 1
-```
-
-This is wrong because:
-- It multiplies the current price by the split ratio
-- This would make a 2:1 split look like a 100% gain!
-
-The correct approach should be:
-```python
-# OPTION 1: Adjust previous price for split
-total_return = (p_curr + div_curr) / (p_prev / split_curr) - 1
-
-# OR OPTION 2: Track cumulative adjustment
-# Maintain adjusted price series throughout
-```
-
-### Corrected Implementation for Comprehensive Method
-
-```python
-def calculate_comprehensive_total_returns(
-    self,
-    prices: pd.Series,
-    dividends: Optional[pd.Series] = None,
-    splits: Optional[pd.Series] = None
-) -> pd.Series:
-    """
-    Calculate comprehensive total returns including all corporate actions.
-    
-    Stock split handling:
-    - A 2:1 split means you get 2 shares for every 1 share
-    - The price drops by half to maintain market cap
-    - We need to adjust historical prices to be comparable
-    """
-    if len(prices) < 2:
-        return pd.Series(dtype=float, index=prices.index, 
-                        name=f"{prices.name}_comprehensive_total_returns")
-    
-    # Align all data
-    df = pd.DataFrame({'price': prices})
-    df['dividend'] = dividends if dividends is not None else 0
-    df['split'] = splits if splits is not None else 1
-    
-    # Fill missing values
-    df['dividend'] = df['dividend'].fillna(0)
-    df['split'] = df['split'].fillna(1)
-    
-    # Calculate cumulative split adjustment factor
-    # This tracks how many shares you would have from splits
-    df['cum_split_factor'] = df['split'].cumprod()
-    
-    # Calculate split-adjusted prices (comparable across time)
-    # Current price divided by cumulative splits gives comparable price
-    df['adj_price'] = df['price'] / df['cum_split_factor']
-    
-    # Calculate returns using adjusted prices and dividends
-    # Dividends are already on a per-share basis post-split
-    df['total_return'] = (
-        (df['adj_price'] + df['dividend'] / df['cum_split_factor']) / 
-        df['adj_price'].shift(1) - 1
-    )
-    
-    # Alternative approach: track share count
-    # shares = 1.0  # Start with 1 share
-    # for i in range(1, len(df)):
-    #     shares *= df['split'].iloc[i]  # Adjust share count
-    #     value_prev = shares * df['price'].iloc[i-1]
-    #     value_curr = shares * (df['price'].iloc[i] + df['dividend'].iloc[i])
-    #     df.loc[df.index[i], 'total_return'] = value_curr / value_prev - 1
-    
-    return df['total_return']
-```
-
-### Test Case for Verification:
-```python
-def test_comprehensive_returns_with_split():
-    """Test that comprehensive returns handle splits correctly."""
-    # Create test data
-    dates = pd.date_range('2024-01-01', '2024-01-05', freq='D')
-    
-    # Prices: 100 -> 102 -> 51 (split) -> 52 -> 53
-    prices = pd.Series([100, 102, 51, 52, 53], index=dates)
-    
-    # 2:1 split on day 3
-    splits = pd.Series([1, 1, 2, 1, 1], index=dates)
-    
-    # $1 dividend on day 4
-    dividends = pd.Series([0, 0, 0, 1, 0], index=dates)
-    
-    returns = calculator.calculate_comprehensive_total_returns(prices, dividends, splits)
-    
-    # Expected returns:
-    # Day 1->2: 102/100 - 1 = 2%
-    # Day 2->3: (51*2)/102 - 1 = 0% (split-adjusted)
-    # Day 3->4: (52+1)/51 - 1 = 3.92%
-    # Day 4->5: 53/52 - 1 = 1.92%
-    
-    assert abs(returns.iloc[1] - 0.02) < 1e-6
-    assert abs(returns.iloc[2] - 0.0) < 1e-6
-    assert abs(returns.iloc[3] - 0.0392) < 1e-4
-    assert abs(returns.iloc[4] - 0.0192) < 1e-4
-```
-
-## Implementation Steps
-
-1. **Create Tests First**
-   - Test double-counting scenario
-   - Test adjusted vs unadjusted price handling
-   - Test comprehensive method with real data
-   - Test edge cases (no dividends, multiple splits)
-
-2. **Fix TransformedDataProvider**
-   - Implement new logic flow
-   - Add configuration validation
-   - Update logging for clarity
-
-3. **Verify/Fix Comprehensive Method**
-   - Review split handling logic
-   - Test with known split/dividend events
-   - Compare results with external sources
-
-4. **Update Documentation**
-   - Document when to use adjusted vs unadjusted
-   - Explain configuration options
-   - Add examples to docstrings
-
-5. **Integration Testing**
-   - Test with real tickers known to have dividends/splits
-   - Compare total returns with external sources
-   - Verify optimizer still works correctly
-
-## Test Tickers for Verification
-
-Use these tickers with known corporate actions:
-
-- **AAPL**: Regular dividends, had 4:1 split in 2020
-- **MSFT**: Regular dividends, no recent splits
-- **TSLA**: No dividends, had 5:1 split in 2020
-- **T (AT&T)**: High dividend yield, spin-offs
-- **SPY**: ETF with regular distributions
-
-## Success Criteria
-
-- [x] No double-counting of dividends when using adjusted prices
-- [x] Correct handling of dividends with unadjusted prices
-- [x] Comprehensive method correctly handles splits
-- [x] All existing tests still pass
-- [x] New tests cover all scenarios
-- [x] Documentation clearly explains the options
-- [x] Performance not significantly impacted
-
-## Questions for Review
-
-1. Should we default to adjusted prices (simpler) or unadjusted (more control)?
-2. Do we need to handle other corporate actions (spin-offs, special dividends)?
-3. Should we add a method to decompose historical returns into price/dividend components?
-
-## Notes
-
-- This is a critical fix as it affects all return calculations
-- The issue may have inflated historical returns in optimizations
-- After fixing, we should re-run parameter optimizations to see impact
-- Consider adding return decomposition for the earnings analysis requested
-
-## Bonus: Return Decomposition Method
-
-For the earnings decomposition analysis requested by the user, add this method:
-
-```python
-def decompose_returns(
+def decompose_equity_returns(
     self,
     ticker: str,
     start: date,
     end: date,
-    earnings_data: Optional[pd.Series] = None
+    earnings_data: pd.Series,
+    frequency: str = "daily"
 ) -> Dict[str, pd.Series]:
     """
-    Decompose total returns into components:
-    - Dividend yield
-    - Price appreciation (if no earnings data)
-    - OR: Earnings growth + P/E change (if earnings provided)
+    Decompose equity returns into economically meaningful components.
     
-    Total Return ≈ Dividend Yield + Price Appreciation
-    Total Return ≈ Dividend Yield + Earnings Growth + P/E Change
+    Returns dictionary with:
+    - nominal_return: Total nominal return
+    - dividend_yield: Dividend yield component
+    - pe_change: P/E multiple change component  
+    - nominal_earnings_growth: Earnings growth in nominal terms
+    - real_earnings_growth: Earnings growth adjusted for inflation
+    - real_earnings_excess: Real earnings growth above real risk-free rate
+    - inflation: Inflation rate over period
+    - nominal_rf: Nominal risk-free rate
+    - real_rf: Real risk-free rate
+    - real_risk_premium: Total real risk premium
+    - excess_return: Nominal return minus nominal risk-free rate
+    
+    All components are aligned and calculated for the same periods.
     """
-    # Get raw data
-    prices = self.get_data(RawDataType.OHLCV, start, end, ticker)
-    adj_prices = self.get_data(RawDataType.ADJUSTED_CLOSE, start, end, ticker)
-    dividends = self.get_data(RawDataType.DIVIDEND, start, end, ticker)
-    
-    # Calculate dividend yield
-    div_yield = dividends / prices.shift(1)
-    div_yield = div_yield.fillna(0)
-    
-    # Calculate price appreciation from adjusted prices
-    price_return = adj_prices.pct_change()
-    
-    if earnings_data is not None:
-        # Calculate P/E ratios
-        pe_ratio = prices / earnings_data
-        
-        # Earnings growth
-        earnings_growth = earnings_data.pct_change()
-        
-        # P/E change
-        pe_change = pe_ratio.pct_change()
-        
-        return {
-            'total_return': price_return,
-            'dividend_yield': div_yield,
-            'earnings_growth': earnings_growth,
-            'pe_change': pe_change,
-            'price_return_ex_div': price_return - div_yield
-        }
-    else:
-        return {
-            'total_return': price_return,
-            'dividend_yield': div_yield,
-            'price_appreciation': price_return - div_yield
-        }
 ```
 
-This enables the sophisticated analysis of return components that makes time series forecasting more tractable.
+### 2. Enhanced Data Requirements
+
+The method needs to fetch and align:
+
+1. **Price and Dividend Data** (existing)
+   - Unadjusted prices for P/E calculation
+   - Adjusted prices for total return
+   - Dividend data
+
+2. **Earnings Data** (input parameter)
+   - Quarterly or annual EPS data
+   - Will need interpolation/alignment
+
+3. **Economic Data** (new integration)
+   - Inflation rate (CPI or PCE)
+   - Nominal risk-free rate (Treasury rates)
+   - Real risk-free rate (calculated or TIPS)
+
+### 3. Implementation Steps
+
+#### Step 1: Enhance Base Decomposition
+
+Update the existing `decompose_returns` to ensure we have all needed components:
+
+```python
+# In decompose_returns method
+if earnings_data is not None:
+    # Ensure we calculate these components
+    # - total_return (from adjusted prices)
+    # - dividend_yield (dividends / lagged price)
+    # - earnings_growth (earnings pct_change)
+    # - pe_change (calculated as residual or directly)
+    
+    # Important: Verify the identity holds
+    # total_return ≈ dividend_yield + earnings_growth + pe_change
+```
+
+#### Step 2: Add Economic Data Integration
+
+```python
+def _get_economic_data_for_decomposition(
+    self,
+    start: date,
+    end: date,
+    frequency: str,
+    inflation_measure: str = "CPI",
+    rf_tenor: str = "3M"
+) -> Dict[str, pd.Series]:
+    """Fetch and align economic data needed for decomposition."""
+    
+    # Get inflation
+    if inflation_measure == "CPI":
+        inflation = self._compute_inflation_rate(start, end, frequency)
+    else:  # PCE or other measures
+        inflation = self._compute_inflation_rate(start, end, frequency, method=inflation_measure.lower())
+    
+    # Get nominal risk-free rate
+    nominal_rf = self._compute_nominal_risk_free(start, end, frequency, tenor=rf_tenor)
+    
+    # Get real risk-free rate
+    real_rf = self._compute_real_risk_free(start, end, frequency, tenor=rf_tenor)
+    
+    return {
+        'inflation': inflation,
+        'nominal_rf': nominal_rf,
+        'real_rf': real_rf
+    }
+```
+
+#### Step 3: Implement Alignment Logic
+
+```python
+def _align_decomposition_data(
+    self,
+    base_decomp: Dict[str, pd.Series],
+    economic_data: Dict[str, pd.Series],
+    frequency: str
+) -> pd.DataFrame:
+    """Align all data series for consistent calculation."""
+    
+    # Create DataFrame with all components
+    all_data = {}
+    all_data.update(base_decomp)
+    all_data.update(economic_data)
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(all_data)
+    
+    # Handle frequency conversion if needed
+    if frequency != "daily":
+        # May need to aggregate or resample
+        # E.g., for monthly: ensure all data is monthly
+        pass
+    
+    # Forward fill economic data if needed (rates don't change daily)
+    for col in ['inflation', 'nominal_rf', 'real_rf']:
+        if col in df.columns:
+            df[col] = df[col].fillna(method='ffill')
+    
+    # Drop rows with any NaN in critical columns
+    critical_cols = ['total_return', 'dividend_yield', 'earnings_growth', 'pe_change']
+    df = df.dropna(subset=[col for col in critical_cols if col in df.columns])
+    
+    return df
+```
+
+#### Step 4: Calculate Real Components
+
+```python
+def _calculate_real_components(self, aligned_data: pd.DataFrame) -> pd.DataFrame:
+    """Calculate real risk premium components."""
+    
+    result = aligned_data.copy()
+    
+    # Real earnings growth
+    result['real_earnings_growth'] = result['nominal_earnings_growth'] - result['inflation']
+    
+    # Real earnings excess (above real risk-free rate)
+    result['real_earnings_excess'] = result['real_earnings_growth'] - result['real_rf']
+    
+    # Total real risk premium (sum of real components)
+    result['real_risk_premium'] = (
+        result['dividend_yield'] + 
+        result['pe_change'] + 
+        result['real_earnings_excess']
+    )
+    
+    # Excess return for comparison
+    result['excess_return'] = result['total_return'] - result['nominal_rf']
+    
+    # Verification: alternative calculation
+    result['real_risk_premium_check'] = (
+        result['total_return'] - result['inflation'] - result['real_rf']
+    )
+    
+    # Add decomposition quality check
+    result['decomp_error'] = abs(
+        result['real_risk_premium'] - result['real_risk_premium_check']
+    )
+    
+    return result
+```
+
+### 4. Data Sources and Challenges
+
+#### Earnings Data Sources
+
+1. **For ETFs/Indices**: 
+   - Need index-level earnings (S&P 500 earnings)
+   - Sources: S&P, Bloomberg, FRED (some series)
+
+2. **For Individual Stocks**:
+   - Yahoo Finance quarterly earnings
+   - Need to handle reporting dates vs effective dates
+   - Interpolation for daily/monthly frequency
+
+3. **Implementation Approach**:
+   ```python
+   def get_earnings_data(
+       self,
+       ticker: str,
+       start: date,
+       end: date,
+       frequency: str = "quarterly"
+   ) -> pd.Series:
+       """Fetch earnings data with appropriate source."""
+       
+       # Check if it's an index/ETF
+       if ticker in ['SPY', 'IVV', 'VOO']:  # S&P 500
+           # Use S&P 500 earnings from FRED or other source
+           return self._get_sp500_earnings(start, end, frequency)
+       
+       elif ticker in self.KNOWN_ETFS:
+           # Map to underlying index earnings
+           return self._get_index_earnings(ticker, start, end, frequency)
+       
+       else:
+           # Individual stock - use financial data API
+           return self._get_stock_earnings(ticker, start, end, frequency)
+   ```
+
+#### Handling Frequency Mismatches
+
+1. **Earnings**: Usually quarterly, need interpolation
+2. **Economic Data**: May be monthly, need alignment
+3. **Returns**: Can be daily, need aggregation
+
+```python
+def _interpolate_earnings(
+    self,
+    quarterly_earnings: pd.Series,
+    target_dates: pd.DatetimeIndex,
+    method: str = "time"
+) -> pd.Series:
+    """Interpolate quarterly earnings to target frequency."""
+    
+    # Create a complete date range
+    full_range = pd.date_range(
+        start=quarterly_earnings.index.min(),
+        end=quarterly_earnings.index.max(),
+        freq='D'
+    )
+    
+    # Reindex to daily
+    daily_earnings = quarterly_earnings.reindex(full_range)
+    
+    # Interpolate
+    if method == "time":
+        # Time-based interpolation
+        daily_earnings = daily_earnings.interpolate(method='time')
+    elif method == "flat":
+        # Forward fill (flat between quarters)
+        daily_earnings = daily_earnings.fillna(method='ffill')
+    
+    # Select target dates
+    return daily_earnings.reindex(target_dates)
+```
+
+### 5. Testing Requirements
+
+#### Unit Tests
+
+```python
+def test_equity_decomposition_identity():
+    """Test that components sum to total return."""
+    # Create synthetic data where we know the relationship
+    dates = pd.date_range('2024-01-01', '2024-12-31', freq='M')
+    
+    # Known components
+    dividend_yield = pd.Series(0.02/12, index=dates)  # 2% annual
+    earnings_growth = pd.Series(0.08/12, index=dates)  # 8% annual
+    pe_change = pd.Series(0.05/12, index=dates)  # 5% annual
+    
+    # Total should be ~15% annualized
+    total_return = dividend_yield + earnings_growth + pe_change
+    
+    # Test decomposition
+    result = decompose_equity_returns(...)
+    
+    # Verify identity holds
+    assert np.allclose(
+        result['total_return'],
+        result['dividend_yield'] + result['earnings_growth'] + result['pe_change'],
+        rtol=1e-5
+    )
+
+def test_real_adjustment():
+    """Test inflation and rf adjustment of earnings."""
+    # With 3% inflation and 1% real rf
+    # 8% nominal earnings -> 5% real -> 4% real excess
+    
+    nominal_earnings_growth = 0.08
+    inflation = 0.03
+    real_rf = 0.01
+    
+    expected_real_excess = nominal_earnings_growth - inflation - real_rf
+    
+    # Test the calculation
+    result = calculate_real_components(...)
+    assert np.isclose(result['real_earnings_excess'], expected_real_excess)
+```
+
+#### Integration Tests
+
+```python
+def test_spy_decomposition():
+    """Test with real S&P 500 data."""
+    # Use a period with known characteristics
+    # E.g., 2019 - stable growth, ~2% dividends
+    
+    result = provider.decompose_equity_returns(
+        'SPY',
+        date(2019, 1, 1),
+        date(2019, 12, 31),
+        sp500_earnings_data,
+        frequency='monthly'
+    )
+    
+    # Check reasonable ranges
+    assert 0.015 < result['dividend_yield'].mean() < 0.025  # 1.5-2.5%
+    assert result['decomp_error'].max() < 0.001  # Identity holds
+```
+
+### 6. Example Usage
+
+```python
+# Example script: examples/enhanced_equity_decomposition_demo.py
+
+# Initialize provider
+provider = TransformedDataProvider(coordinator)
+
+# Get S&P 500 earnings (from FRED or other source)
+sp500_earnings = get_sp500_earnings_data(start_date, end_date)
+
+# Decompose returns
+decomp = provider.decompose_equity_returns(
+    ticker='SPY',
+    start=date(2020, 1, 1),
+    end=date(2024, 12, 31),
+    earnings_data=sp500_earnings,
+    frequency='monthly'
+)
+
+# Display results
+print("S&P 500 Return Decomposition (Annualized):")
+print(f"Total Nominal Return: {decomp['nominal_return'].mean() * 12:.2%}")
+print(f"  - Dividend Yield: {decomp['dividend_yield'].mean() * 12:.2%}")
+print(f"  - P/E Change: {decomp['pe_change'].mean() * 12:.2%}")
+print(f"  - Nominal Earnings Growth: {decomp['nominal_earnings_growth'].mean() * 12:.2%}")
+print(f"\nReal Risk Premium: {decomp['real_risk_premium'].mean() * 12:.2%}")
+print(f"  - Dividend Yield: {decomp['dividend_yield'].mean() * 12:.2%}")
+print(f"  - P/E Change: {decomp['pe_change'].mean() * 12:.2%}")
+print(f"  - Real Earnings Excess: {decomp['real_earnings_excess'].mean() * 12:.2%}")
+print(f"\nEconomic Context:")
+print(f"  - Inflation: {decomp['inflation'].mean() * 12:.2%}")
+print(f"  - Real Risk-Free Rate: {decomp['real_rf'].mean() * 12:.2%}")
+```
+
+### 7. Success Criteria
+
+- [ ] Base decomposition correctly splits returns into div yield, earnings growth, P/E change
+- [ ] Identity holds: total return = sum of components (within 0.1% tolerance)
+- [ ] Economic data properly integrated and aligned
+- [ ] Real components correctly calculated
+- [ ] Works with multiple frequencies (daily, monthly, quarterly)
+- [ ] Handles missing data gracefully
+- [ ] Example demonstrates economic intuition
+- [ ] All tests pass
+
+### 8. Future Enhancements
+
+After this foundation is complete:
+
+1. **Add Sector/Industry Decomposition**: Compare earnings growth across sectors
+2. **Multi-Factor Attribution**: Decompose P/E changes into style factors
+3. **International Markets**: Handle currency effects for international equities
+4. **Forecast Integration**: Use decomposition for return prediction
+5. **Risk Decomposition**: Separate volatility into component contributions
+
+## Notes
+
+- This provides the data foundation for sophisticated equity analysis
+- Each component has different time series properties suitable for different models
+- The framework extends naturally to other asset classes with appropriate modifications
+- Focus on data quality and alignment - garbage in, garbage out
