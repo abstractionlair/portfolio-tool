@@ -98,7 +98,7 @@ pip install -e .
 
 ```bash
 # Copy the template
-cp config/.env.template .env
+cp .env.template .env
 
 # Edit .env with your favorite editor
 # Add your API keys:
