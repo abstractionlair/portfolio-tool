@@ -31,6 +31,17 @@ I couldn't get it to do anything useful. I suspect this was their rushed out the
 ### Qwen
 I couldn't get it to do anything useful.
 
+### What a second review pass added (July 2026)
+I later ran this repo through a multi-model code review. The reviews keep finding exactly what vibe-coding predicts: documentation describing the project the agent intended to build rather than the one it built.
+
+- The docs claim "420+ tests" and "202 contract tests." The review counted 218 test functions, and PROJECT_CONTEXT/CURRENT_STATE.md names a test file (`tests/data/test_return_calculation_fixes.py`) that does not exist.
+- The "production" parameter file, `config/optimal_parameters_portfolio_level.yaml`, can't be read with `yaml.safe_load` — it is full of numpy object tags from a plain `yaml.dump`. And the docs' optimal horizon (189 days) disagrees with the YAML's (252).
+- In `src/optimization/portfolio_optimizer.py`, the `long_only=True` and `long_only=False` branches are byte-identical, `max_total_notional` is never referenced, and the success path hardcodes `exposures={}` and `total_notional=1.0`.
+- The docs point to results at `output/portfolio_level_optimization/portfolio_level_results.json` and `plots/`. Neither exists, and the analyzer that would read them raises FileNotFoundError.
+- Three checked-in artifacts disagree on how many exposures worked: 17, 14, or 16, depending on which one you read.
+
+None of this was visible from the demos, which is the point. Demo-driven QC catches math that produces visibly wrong numbers. It does not catch documentation that outruns the code.
+
 
 ## Goals
 
