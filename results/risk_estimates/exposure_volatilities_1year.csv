@@ -1,0 +1,15 @@
+exposure_id,exposure_name,annualized_volatility,estimation_date,forecast_horizon_days
+commodities,Broad Commodities,0.187056865675405,2025-07-07 16:00:02.542043,252
+us_small_equity,US Small Cap Equity Beta,0.18020219544828237,2025-07-07 16:00:02.542043,252
+gold,Gold,0.1797165185553395,2025-07-07 16:00:02.542043,252
+emerging_equity,Emerging Markets Equity Beta,0.14298616127619546,2025-07-07 16:00:02.542043,252
+real_estate,Real Estate,0.1378962940174292,2025-07-07 16:00:02.542043,252
+us_large_equity,US Large Cap Equity Beta,0.1271291001080516,2025-07-07 16:00:02.542043,252
+intl_developed_large_equity,Developed Ex-US Large Cap Equity Beta,0.12113357386840796,2025-07-07 16:00:02.542043,252
+intl_developed_small_equity,Developed Ex-US Small Cap Equity Beta,0.12008366477683827,2025-07-07 16:00:02.542043,252
+factor_style_other,Factor/Style - Other,0.07929960349938957,2025-07-07 16:00:02.542043,252
+factor_style_equity,Factor/Style - Equities,0.0691525088782368,2025-07-07 16:00:02.542043,252
+broad_ust,Broad US Treasuries,0.04516669878999378,2025-07-07 16:00:02.542043,252
+dynamic_global_bonds,Dynamic Global Bonds,0.03537107348525907,2025-07-07 16:00:02.542043,252
+tips,Treasury Inflation-Protected Securities,0.0314384964284052,2025-07-07 16:00:02.542043,252
+short_ust,Short-Term US Treasuries,0.013796764181046722,2025-07-07 16:00:02.542043,252

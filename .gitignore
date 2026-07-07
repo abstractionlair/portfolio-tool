@@ -226,7 +226,7 @@ RISK_PREMIUM_VOLATILITY_ANALYSIS.md
 
 # Debug and test scripts
 debug_*.py
-test_*.py
+/test_*.py
 run_test*.py
 
 # Node modules (shouldn't be in Python project)
