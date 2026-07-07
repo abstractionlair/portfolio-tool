@@ -120,8 +120,8 @@ Create a functional tool for managing and optimizing my investment portfolio
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/abstractionlair/portfolio-optimizer.git
-   cd portfolio-optimizer
+   git clone https://github.com/abstractionlair/portfolio-tool.git
+   cd portfolio-tool
    ```
 
 2. Set up Python environment:

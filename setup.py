@@ -11,14 +11,14 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="portfolio-optimizer",
+    name="portfolio-tool",
     version="0.1.0",
     author="Scott McGuire",
     author_email="scottvmcguire@fastmail.fm",
     description="Portfolio optimization tool with support for leverage and alternative investments",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/abstractionlair/portfolio-optimizer",
+    url="https://github.com/abstractionlair/portfolio-tool",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
