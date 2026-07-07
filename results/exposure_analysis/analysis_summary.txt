@@ -1,0 +1,16 @@
+EXPOSURE UNIVERSE ANALYSIS SUMMARY
+==================================================
+
+Analysis Period: 2020-07-06 to 2025-07-05
+Data Frequency: monthly
+Inflation Series: cpi_all
+
+Total Exposures: 16
+Successful Data Fetches: 16/16
+
+Average Real Return: 3.58%
+Average Volatility: 12.32%
+Average Sharpe Ratio: 0.02
+
+Average Inflation Impact: 5.03%
+Period Inflation Rate: 0.37% (annualized)

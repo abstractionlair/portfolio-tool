@@ -1,0 +1,124 @@
+optimization_date: '2025-07-10T13:41:26.773076'
+validation_period:
+- '2025-07-10T13:41:25.472277'
+- '2025-10-10T13:41:25.472277'
+metadata:
+  optimization_time_seconds: 1.2986738681793213
+  n_exposures: 4
+  n_splits: 3
+  parallel: false
+  exposure_ids:
+  - us_large_equity
+  - bonds
+  - commodities
+  - real_estate
+volatility_params:
+  us_large_equity:
+    component_type: volatility
+    exposure_id: us_large_equity
+    method: historical
+    parameters:
+      min_periods: 60
+    lookback_days: 756
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  bonds:
+    component_type: volatility
+    exposure_id: bonds
+    method: historical
+    parameters:
+      min_periods: 60
+    lookback_days: 756
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  commodities:
+    component_type: volatility
+    exposure_id: commodities
+    method: historical
+    parameters:
+      min_periods: 60
+    lookback_days: 756
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  real_estate:
+    component_type: volatility
+    exposure_id: real_estate
+    method: historical
+    parameters:
+      min_periods: 60
+    lookback_days: 756
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+correlation_params:
+  component_type: correlation
+  exposure_id: correlation
+  method: historical
+  parameters:
+    min_periods: 120
+  lookback_days: 1008
+  frequency: monthly
+  score: .nan
+  validation_metrics:
+    error: optimization_failed
+  metadata: {}
+expected_return_params:
+  us_large_equity:
+    component_type: expected_returns
+    exposure_id: us_large_equity
+    method: historical
+    parameters:
+      min_periods: 40
+    lookback_days: 504
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  bonds:
+    component_type: expected_returns
+    exposure_id: bonds
+    method: historical
+    parameters:
+      min_periods: 40
+    lookback_days: 504
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  commodities:
+    component_type: expected_returns
+    exposure_id: commodities
+    method: historical
+    parameters:
+      min_periods: 40
+    lookback_days: 504
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
+  real_estate:
+    component_type: expected_returns
+    exposure_id: real_estate
+    method: historical
+    parameters:
+      min_periods: 40
+    lookback_days: 504
+    frequency: monthly
+    score: .nan
+    validation_metrics:
+      error: optimization_failed
+    metadata: {}
