@@ -3,14 +3,14 @@
 ## Overview
 This project had dual purposes.
 First, I actually did want this tool for my own use in managing my investments.
-Second, I wanted to see how far I could push geting AI to write, test, and debug code while I acted mostly as an architect and manager.
-This wasn't quite vibe coding. I did review the code and ask for specific aditions or changes, but in a "last line of defense" way.
+Second, I wanted to see how far I could push getting AI to write, test, and debug code while I acted mostly as an architect and manager.
+This wasn't quite vibe coding. I did review the code and ask for specific additions or changes, but in a "last line of defense" way.
 
 ## Learnings
 (Things are moving fast. There have already been updates to the models since I did this and functionality is likely better.)
 
 ### Claude Code
-Claude Code is great. In the end it did almost all the (good) work. I like the CLI interface as lot, as apparently many people do. Must be something about coder's brains.
+Claude Code is great. In the end it did almost all the (good) work. I like the CLI interface a lot, as apparently many people do. Must be something about coders' brains.
 There were rough spots and I think they were the same complaints that other people have had.
 There was placeholder code, like methods with hard-coded returns when they were meant to compute or retrieve something. And this was _without_ acknowledgement in the chat. (Though there were at least comments.)
 Code for new features tended to be just "added to the pile" rather than organized.
@@ -21,7 +21,7 @@ Despite those issues, this _felt_ more productive than writing it all myself.
 This is the way.
 
 ### Gemini
-I had heard someone say at the time that Gemini excelled at big picture stuff like architecture and interfaces, so I decided to let it try to reorgainze the "pile of code" I had ended up with.
+I had heard someone say at the time that Gemini excelled at big picture stuff like architecture and interfaces, so I decided to let it try to reorganize the "pile of code" I had ended up with.
 This looked like it was making progress, so I started letting it continue on its own and I went out.
 It made a little progress on a nicer interface, but threw away the real code and replaced it with placeholder code, then got stuck in an infinite loop, and cost me $200.
 
