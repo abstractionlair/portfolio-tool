@@ -1,0 +1,4 @@
+# Placeholder GitHub PAT in a documentation example, explicitly labeled "with
+# fake keys" (config/CLAUDE_DESKTOP_SETUP.md, commit cb9c971). Sequential
+# placeholder value (1234567890abcdef...), never a live credential.
+cb9c971707069fdac7a007b651f78b8de2066be2:config/CLAUDE_DESKTOP_SETUP.md:generic-api-key:66
