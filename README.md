@@ -1,5 +1,7 @@
 # Portfolio Optimization Tool
 
+*See [PROVENANCE.md](PROVENANCE.md) for this repo's public-release date and real project timeframe.*
+
 ## Overview
 This project had dual purposes.
 First, I actually did want this tool for my own use in managing my investments.
