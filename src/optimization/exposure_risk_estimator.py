@@ -16,8 +16,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 try:
-    from data.exposure_universe import ExposureUniverse
-    from data.multi_frequency import Frequency, MultiFrequencyDataFetcher, ReturnCompounding
+    from src.data.exposure_universe import ExposureUniverse
+    from src.data.multi_frequency import Frequency, MultiFrequencyDataFetcher, ReturnCompounding
     from .parameter_optimization import ParameterOptimizer
     from .ewma import EWMAEstimator, EWMAParameters, GARCHEstimator
 except ImportError:

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.validation import CompatibilityValidationFramework
 from src.validation.parameter_validation import ValidationMethod, ParameterValidationFramework
 from src.search.parameter_search import ParameterSearchEngine, SearchConfiguration
-from data.multi_frequency import Frequency
+from src.data.multi_frequency import Frequency
 
 
 class TestCompleteIntegration:

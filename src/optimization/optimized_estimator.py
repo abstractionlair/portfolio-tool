@@ -15,7 +15,7 @@ import numpy as np
 
 from .component_optimizers import UnifiedOptimalParameters, ComponentOptimalParameters
 from .risk_premium_estimator import RiskPremiumEstimator
-from data.exposure_universe import ExposureUniverse
+from src.data.exposure_universe import ExposureUniverse
 
 logger = logging.getLogger(__name__)
 

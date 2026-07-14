@@ -10,7 +10,7 @@ from typing import Dict, List, Any
 from enum import Enum
 import time
 from datetime import datetime
-from data.multi_frequency import Frequency
+from src.data.multi_frequency import Frequency
 from src.validation import CompatibilityValidationFramework
 from src.validation.parameter_validation import ValidationMethod
 

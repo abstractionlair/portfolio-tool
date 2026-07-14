@@ -18,8 +18,8 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # Test the core concept
-from data.return_decomposition import ReturnDecomposer
-from data.exposure_universe import ExposureUniverse
+from src.data.return_decomposition import ReturnDecomposer
+from src.data.exposure_universe import ExposureUniverse
 
 
 def test_return_decomposition():
