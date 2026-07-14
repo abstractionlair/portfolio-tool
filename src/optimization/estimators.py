@@ -8,16 +8,19 @@ from datetime import datetime, timedelta
 import logging
 
 try:
-    from src.data import MarketDataFetcher, calculate_returns
+    from ..data import MarketDataFetcher, calculate_returns
 except ImportError:
     try:
-        from ..data import MarketDataFetcher, calculate_returns
+        from src.data import MarketDataFetcher, calculate_returns
     except ImportError:
-        # Define stubs for standalone usage
-        class MarketDataFetcher:
-            pass
-        def calculate_returns(*args, **kwargs):
-            return None
+        try:
+            from data import MarketDataFetcher, calculate_returns
+        except ImportError:
+            # Define stubs for standalone usage
+            class MarketDataFetcher:
+                pass
+            def calculate_returns(*args, **kwargs):
+                return None
 
 try:
     from .ewma import EWMAEstimator, EWMAParameters, GARCHEstimator
