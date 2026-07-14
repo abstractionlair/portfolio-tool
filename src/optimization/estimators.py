@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import logging
 
 try:
-    from data import MarketDataFetcher, calculate_returns
+    from src.data import MarketDataFetcher, calculate_returns
 except ImportError:
     try:
         from ..data import MarketDataFetcher, calculate_returns

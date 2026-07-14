@@ -63,8 +63,8 @@ class OptimizedRiskEstimator:
     def _create_default_estimator(self) -> RiskPremiumEstimator:
         """Create default risk estimator."""
         try:
-            from data.exposure_universe import ExposureUniverse
-            from data.return_decomposition import ReturnDecomposer
+            from src.data.exposure_universe import ExposureUniverse
+            from src.data.return_decomposition import ReturnDecomposer
             
             # Try multiple paths for the config file
             config_paths = [

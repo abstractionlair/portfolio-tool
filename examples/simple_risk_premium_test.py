@@ -10,8 +10,8 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+# Add repo root to path (so `src.data...` imports below resolve)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
 import numpy as np
