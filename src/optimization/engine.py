@@ -230,7 +230,7 @@ class OptimizationEngine:
                     symbols, covariance_matrix, constraints, **kwargs
                 )
             elif objective == ObjectiveType.TARGET_EXPOSURES:
-                target_exposures = kwargs.get('target_exposures')
+                target_exposures = kwargs.pop('target_exposures', None)
                 if target_exposures is None:
                     raise ValueError("target_exposures required for TARGET_EXPOSURES objective")
                 return self.optimize_exposures(symbols, target_exposures, constraints, **kwargs)

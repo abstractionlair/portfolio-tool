@@ -27,7 +27,7 @@ def test_return_decomposition():
     print("Testing Return Decomposition...")
     
     # Create sample returns data
-    dates = pd.date_range('2020-01-01', '2023-12-31', freq='M')
+    dates = pd.date_range('2020-01-01', '2023-12-31', freq='ME')
     np.random.seed(42)
     returns = pd.Series(
         np.random.normal(0.08/12, 0.15/np.sqrt(12), len(dates)),

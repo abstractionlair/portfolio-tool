@@ -73,7 +73,7 @@ class MeanVarianceOptimizer:
         problem = cp.Problem(objective, constraints_list)
         
         try:
-            problem.solve(solver=cp.OSQP, verbose=False, max_iter=10000)
+            problem.solve(solver=cp.CLARABEL, verbose=False)
             solve_time = time.time() - start_time
             
             if problem.status in cp.settings.SOLUTION_PRESENT:

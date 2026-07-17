@@ -281,7 +281,7 @@ class ReturnEstimator:
             return np.eye(len(symbols)) * 0.04  # 20% annual volatility
         
         # Calculate sample covariance
-        cov_matrix = returns_df[available_symbols].cov().values
+        cov_matrix = returns_df[available_symbols].cov().to_numpy(copy=True)
         
         # Annualize
         if frequency == 'daily':
