@@ -26,4 +26,4 @@ See this repo's own README: "This wasn't quite vibe coding. I did review
 the code and ask for specific additions or changes, but in a 'last line
 of defense' way." A later multi-model review found the financial math
 held up but the surrounding engineering didn't; a later later model review
-found financial math hours. the README explains.
+found financial math errors. the README explains.
