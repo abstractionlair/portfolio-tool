@@ -34,6 +34,8 @@ I couldn't get it to do anything useful. I suspect this was their rushed out the
 I couldn't get it to do anything useful.
 
 ### What a second review pass added (July 2026)
+*(This section was written by Claude from the review records.)*
+
 I later ran this repo through a multi-model code review. The reviews keep finding exactly what vibe-coding predicts: documentation describing the project the agent intended to build rather than the one it built.
 
 - The docs claim "420+ tests" and "202 contract tests." The review counted 218 test functions, and PROJECT_CONTEXT/CURRENT_STATE.md names a test file (`tests/data/test_return_calculation_fixes.py`) that does not exist.
@@ -43,6 +45,19 @@ I later ran this repo through a multi-model code review. The reviews keep findin
 - Three checked-in artifacts disagree on how many exposures worked: 17, 14, or 16, depending on which one you read.
 
 None of this was visible from the demos, which is the point. Demo-driven QC catches math that produces visibly wrong numbers. It does not catch documentation that outruns the code.
+
+### What an adversarial audit added (July 2026)
+
+A later audit reviewed the repo under a different framing — "read this as a stranger's portfolio" rather than "does this work?" — and found financial-math errors the in-project reviews had passed:
+
+- Partial sales zero out the remaining position's cost basis: buy 100 @ $10, sell 50 @ $20 leaves the remaining 50 shares with a basis of $0 (sells route through the weighted-average buy path). Realized P&L is not computed anywhere.
+- The metric labeled "TWR" is not a time-weighted return — no sub-period geometric linking; a code comment calls it "simplified."
+- Default position sizing excludes cash.
+- Both max-Sharpe optimization paths optimize the wrong objective: one imposes the budget and variance constraints simultaneously and degenerates to return maximization; the other minimizes a fixed-λ utility (−excess + 0.5·var), which is not scale-invariant Sharpe. Code comments concede "approximation."
+
+These are the kind of errors the section above assumed demo-driven QC would surface — "math that produces visibly wrong numbers" — except the numbers looked plausible, and in-project reviews judged the math sound. What changed was the review's framing, not the reviewers. None of these are fixed as of this note.
+
+*(Found by a GPT-5/Codex portfolio audit, 2026-07-21; confirmed and reproduced by execution during a Claude verification pass. Section written by Claude from those verification records.)*
 
 
 ## Goals
